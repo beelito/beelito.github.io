@@ -57,3 +57,39 @@
     } else { raf = null; }
   }
 })();
+
+// Playground: open a toy in the fullscreen glass modal. ESC / backdrop / ✕ closes it.
+(function () {
+  var modal = document.getElementById("gameModal");
+  var frame = document.getElementById("gameFrame");
+  var title = document.getElementById("gameTitle");
+  var closeBtn = document.getElementById("gameClose");
+  if (!modal || !frame || !title || !closeBtn) return;
+
+  function open(game, name) {
+    title.textContent = name || "game";
+    frame.src = game;
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("locked");
+    closeBtn.focus();
+  }
+  function close() {
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("locked");
+    frame.src = "about:blank"; // stop the game when the modal closes
+  }
+  document.querySelectorAll(".toy-play").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      open(btn.getAttribute("data-game"), btn.getAttribute("data-title"));
+    });
+  });
+  closeBtn.addEventListener("click", close);
+  modal.addEventListener("click", function (e) {
+    if (e.target === modal) close();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && modal.classList.contains("open")) close();
+  });
+})();
