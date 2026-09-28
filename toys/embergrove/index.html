@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Emberggrove — a cozy lantern-keeping tale</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#0a0716;overflow:hidden;font-family:Georgia,'Times New Roman',serif;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0716}
+  #screen{image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+  #scan{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.20) 0 1px, transparent 1px 3px);}
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:6;
+    background:radial-gradient(ellipse at center, transparent 52%, rgba(5,2,14,.55) 100%)}
+  #splash{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%, #1c1233 0%, #0a0716 70%);cursor:pointer;text-align:center;padding:20px}
+  #splash img{max-width:min(560px,86vw);border-radius:12px;box-shadow:0 0 60px #f5a62333}
+  #splash .tag{color:#c9a86a;letter-spacing:4px;font-size:13px;margin-top:10px;text-transform:uppercase}
+  #splash .story{color:#b9a8e0;font-size:15px;line-height:1.7;margin-top:14px;max-width:520px;font-style:italic}
+  #splash .begin{color:#ffe14d;font-size:17px;margin-top:22px;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
+  #hud{position:fixed;top:12px;left:0;right:0;z-index:10;text-align:center;color:#ffe9b8;font-size:15px;
+    text-shadow:2px 2px 0 #000;pointer-events:none;letter-spacing:2px;display:none}
+  #hud b{color:#ffb347}
+  #prompt{position:fixed;bottom:118px;left:0;right:0;z-index:10;text-align:center;color:#fff;font-size:14px;
+    text-shadow:2px 2px 0 #000;pointer-events:none;display:none}
+  #prompt .key{display:inline-block;border:1px solid #ffe9b8;border-radius:5px;padding:1px 9px;margin-right:8px;color:#ffe9b8}
+  #dlg{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);width:min(600px,92vw);z-index:11;
+    background:#141021ee;border:1px solid #6b5a9e;border-radius:12px;padding:12px 18px;display:none;box-shadow:0 6px 30px #000c}
+  #dlgName{color:#ffb347;font-size:13px;letter-spacing:1px;margin-bottom:5px}
+  #dlgText{color:#efe9ff;font-size:15px;line-height:1.55;min-height:44px}
+  #dlgHint{color:#8f86b8;font-size:11px;text-align:right;margin-top:4px}
+  #help{position:fixed;bottom:10px;left:12px;z-index:9;color:#7a7099;font-size:11px;text-shadow:2px 2px 0 #000;pointer-events:none}
+  #toast{position:fixed;top:34%;left:0;right:0;z-index:12;text-align:center;color:#ffe14d;font-size:24px;
+    text-shadow:3px 3px 0 #000;display:none;pointer-events:none;padding:0 20px;line-height:1.5}
+  #touchUI{position:fixed;inset:0;z-index:11;display:none;pointer-events:none}
+  #joy{position:absolute;bottom:26px;left:22px;width:124px;height:124px;border-radius:50%;
+    border:2px solid #6b5a9e99;background:#1a1530b0;pointer-events:auto;touch-action:none}
+  #joyKnob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;
+    border-radius:50%;background:#ffb347d9;border:2px solid #ffe9b8;box-shadow:0 2px 10px #000a}
+  #tAct{position:absolute;bottom:34px;right:24px;width:76px;height:76px;font-size:30px;border-radius:50%;
+    border:2px solid #6b5a9e;background:#221d3add;color:#ffe9b8;pointer-events:auto;touch-action:none}
+  #tAct.ready{border-color:#ffb347;animation:pulse 1.1s infinite}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="screen"></canvas></div>
+<div id="scan"></div><div id="vig"></div>
+<div id="splash">
+  <img src="art/logo.webp" alt="Emberggrove">
+  <div class="tag">a cozy lantern-keeping tale</div>
+  <div class="story">The stone lanterns of Emberggrove have gone dark, and the grove is holding its breath.<br>
+  You are Pip, the littlest lantern-keeper. Wander the dusk, find the eight lanterns,<br>
+  and give them back their light. No rush. The fireflies will keep you company.</div>
+  <div class="begin">✦ click to wake up ✦</div>
+</div>
+<div id="hud">🏮 <b id="hLant">0</b> / 8 lanterns lit</div>
+<div id="prompt"><span class="key">E</span><span id="promptText"></span></div>
+<div id="dlg"><div id="dlgName"></div><div id="dlgText"></div><div id="dlgHint">E ▸</div></div>
+<div id="help">WASD walk · drag to look · E talk / light · M music</div>
+<div id="toast"></div>
+<div id="touchUI"><div id="joy"><div id="joyKnob"></div></div><button id="tAct">✦</button></div>
+<script>
+'use strict';
+/* =====================================================================
+   CHUNK3D v1 — a tiny pixelated software 3d engine.
+   Renders into a low-res framebuffer (default 320x180), upscaled with
+   pixelated filtering. Features: z-buffer, affine texture mapping
+   (authentic PS1 wobble), flat shading, Bayer dithering, distance fog,
+   near-plane clipping, billboard sprites, procedural textures.
+   ===================================================================== */
+const Pixel3D = (() => {
+
+  /* ---------- tiny vec/mat helpers (arrays, no GC pressure in loops) ---------- */
+  const sub3 = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const cross3 = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const dot3 = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const norm3 = a => { const l = Math.hypot(a[0],a[1],a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+
+  /* ---------- procedural textures ---------- */
+  function makeTexture(size, painter) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const cx = cv.getContext('2d');
+    painter(cx, size);
+    const img = cx.getImageData(0, 0, size, size);
+    return { w: size, h: size, data: img.data }; // RGBA bytes
+  }
+  const TEX = {
+    crate: () => makeTexture(64, (c,s) => {
+      c.fillStyle = '#8a5a2b'; c.fillRect(0,0,s,s);
+      c.fillStyle = '#75491f';
+      for (let i=0;i<40;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,3,2);
+      c.strokeStyle = '#4a2c10'; c.lineWidth = 6; c.strokeRect(3,3,s-6,s-6);
+      c.beginPath(); c.moveTo(0,0); c.lineTo(s,s); c.moveTo(s,0); c.lineTo(0,s); c.lineWidth=5; c.stroke();
+    }),
+    grass: () => makeTexture(64, (c,s) => {
+      for (let y=0;y<8;y++) for (let x=0;x<8;x++) {
+        c.fillStyle = (x+y)%2 ? '#2f7a2e' : '#359236'; c.fillRect(x*8,y*8,8,8);
+      }
+      c.fillStyle = '#2a6e29';
+      for (let i=0;i<60;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,2,3);
+    }),
+    stone: () => makeTexture(64, (c,s) => {
+      c.fillStyle = '#6b6f7a'; c.fillRect(0,0,s,s);
+      c.fillStyle = '#5b5f6a';
+      for (let i=0;i<26;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,8,5);
+      c.strokeStyle='#3d4048'; c.lineWidth=2;
+      for (let i=0;i<4;i++){ c.beginPath(); c.moveTo(0,i*16); c.lineTo(s,i*16); c.stroke(); }
+    }),
+    gold: () => makeTexture(32, (c,s) => {
+      const g = c.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+      g.addColorStop(0,'#fff3a0'); g.addColorStop(.6,'#f5c518'); g.addColorStop(1,'#8a6a00');
+      c.fillStyle = g; c.beginPath(); c.arc(s/2,s/2,s/2-1,0,7); c.fill();
+      c.fillStyle = '#8a6a00'; c.font = 'bold 18px monospace'; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText('$', s/2, s/2+1);
+    }),
+  };
+
+  /* ---------- meshes ---------- */
+  // mesh = { verts: [[x,y,z]...], uvs: [[u,v]...], tris: [[a,b,c]...], tex, shade: per-tri brightness override }
+  function cube(tex) {
+    const v = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+    const uv = [[0,0],[1,0],[1,1],[0,1]];
+    const tris = [];
+    const faces = [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]];
+    const vo = [], uo = [];
+    faces.forEach((f, fi) => {
+      const base = vo.length;
+      f.forEach((vi, k) => { vo.push(v[vi]); uo.push(uv[k]); });
+      tris.push([base, base+1, base+2], [base, base+2, base+3]);
+    });
+    return { verts: vo, uvs: uo, tris, tex };
+  }
+  function plane(tex, rep) {
+    rep = rep || 1;
+    return { verts: [[-1,0,-1],[1,0,-1],[1,0,1],[-1,0,1]],
+             uvs: [[0,0],[rep,0],[rep,rep],[0,rep]],
+             tris: [[0,1,2],[0,2,3]], tex };
+  }
+  function pyramid(color) {
+    return { verts: [[-1,0,-1],[1,0,-1],[1,0,1],[-1,0,1],[0,1.4,0]],
+             uvs: [[0,0],[0,0],[0,0],[0,0],[0,0]],
+             tris: [[0,1,2],[0,2,3],[0,4,1],[1,4,2],[2,4,3],[3,4,0]],
+             tex: null, flatColor: color };
+  }
+
+  /* n-sided prism: trunks, pillars, cones. base at y=0 */
+  function prism(n, rT, rB, h, tex) {
+    const verts = [], uvs = [], tris = [];
+    for (let i=0;i<n;i++) {
+      const a = i/n*Math.PI*2, c = Math.cos(a), s2 = Math.sin(a);
+      verts.push([c*rB,0,s2*rB],[c*rT,h,s2*rT]);
+      uvs.push([i/n,0],[i/n,1]);
+    }
+    for (let i=0;i<n;i++) {
+      const b0=i*2, b1=i*2+1, c0=((i+1)%n)*2, c1=((i+1)%n)*2+1;
+      tris.push([b0,c0,c1],[b0,c1,b1]);
+    }
+    const cb = verts.length; verts.push([0,0.001,0]); uvs.push([.5,.5]);
+    const ct = verts.length; verts.push([0,h,0]); uvs.push([.5,.5]);
+    for (let i=0;i<n;i++) {
+      tris.push([cb,((i+1)%n)*2,i*2]);
+      tris.push([ct,i*2+1,((i+1)%n)*2+1]);
+    }
+    return { verts, uvs, tris, tex };
+  }
+
+  /* ---------- the renderer ---------- */
+  function create(canvas, W, H) {
+    W = W || 320; H = H || 180;
+    canvas.width = W; canvas.height = H;
+    // fit canvas to window keeping aspect
+    const fit = () => {
+      const ar = W / H, ww = innerWidth, wh = innerHeight;
+      let cw = ww, ch = ww / ar;
+      if (ch > wh) { ch = wh; cw = wh * ar; }
+      canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+    };
+    addEventListener('resize', fit); fit();
+
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const buf = img.data;                 // RGBA output
+    const zbuf = new Float32Array(W * H);
+    const fb32 = new Uint32Array(buf.buffer); // fast clear via 32-bit writes
+
+    const BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+
+    const R = {
+      W, H,
+      camera: { x:0, y:2, z:8, yaw:0, pitch:0 },
+      light: { dir: norm3([-0.5, -1, -0.35]), ambient: 0.38 },
+      fog: { color: [12,10,26], near: 18, far: 45 },
+      skyTop: [16,12,40], skyBot: [48,30,72],
+      dither: true, wireframe: false, cel: 0, outline: false, lights: [], time: 0,
+      objects: [],   // {mesh, x,y,z, ry, rx, rz, s}
+      sprites: [],   // {x,y,z, size, tex}
+      fov: 75,
+    };
+
+    R.add = (mesh, o) => { const it = Object.assign({x:0,y:0,z:0,ry:0,rx:0,rz:0,s:1}, o||{}); it.mesh = mesh; R.objects.push(it); return it; };
+    R.addSprite = (x,y,z,size,tex) => { const sp = {x,y,z,size,tex}; R.sprites.push(sp); return sp; };
+    R.clearSprites = () => { R.sprites.length = 0; };
+
+    const stars = [];
+    for (let i=0;i<110;i++) stars.push({ x: Math.random(), y: Math.random()*0.5, ph: Math.random()*6.28 });
+    const craters = [[-0.3,0.1,0.22],[0.25,-0.2,0.16],[0.05,0.35,0.12]];
+
+    function clear() {
+      zbuf.fill(1e9);
+      // vertical sky gradient
+      for (let y=0;y<H;y++) {
+        const t = y/(H-1);
+        const r = (R.skyTop[0]+(R.skyBot[0]-R.skyTop[0])*t)|0;
+        const g = (R.skyTop[1]+(R.skyBot[1]-R.skyTop[1])*t)|0;
+        const b = (R.skyTop[2]+(R.skyBot[2]-R.skyTop[2])*t)|0;
+        const px = (255<<24)|(b<<16)|(g<<8)|r;
+        const row = y*W;
+        for (let x=0;x<W;x++) fb32[row+x] = px;
+      }
+      // warm horizon glow band
+      const hz0 = (H*0.40)|0, hz1 = (H*0.62)|0, hzm = (hz0+hz1)/2;
+      for (let y=hz0;y<hz1;y++) {
+        const t = Math.max(0, 1 - Math.abs(y-hzm)/((hz1-hz0)/2)) * 0.4;
+        const row = y*W*4;
+        for (let x=0;x<W;x++) {
+          const o = row+x*4;
+          buf[o]   += (170-buf[o])  *t*0.5;
+          buf[o+1] += (95-buf[o+1]) *t*0.5;
+          buf[o+2] += (80-buf[o+2]) *t*0.5;
+        }
+      }
+      // twinkling stars in the upper sky
+      for (const st of stars) {
+        const tw = 0.5 + 0.5*Math.sin(R.time*1.6 + st.ph);
+        if (tw < 0.62) continue;
+        const sx = (st.x*W)|0, sy = (st.y*H)|0, o = (sy*W+sx)*4;
+        const b2 = (110+130*tw)|0;
+        buf[o] = b2; buf[o+1] = b2; buf[o+2] = Math.min(255, b2+40);
+      }
+      // moon with halo and craters
+      const mx = (W*0.78)|0, my = (H*0.20)|0, mr = Math.max(8,(H*0.075)|0);
+      for (let y=-mr-5;y<=mr+5;y++) for (let x=-mr-5;x<=mr+5;x++) {
+        const d2 = x*x+y*y, px2 = mx+x, py2 = my+y;
+        if (px2<0||py2<0||px2>=W||py2>=H) continue;
+        const o = (py2*W+px2)*4;
+        if (d2 <= mr*mr) { buf[o] = 238; buf[o+1] = 230; buf[o+2] = 208; }
+        else if (d2 <= (mr+5)*(mr+5)) { buf[o] += 16; buf[o+1] += 14; buf[o+2] += 10; }
+      }
+      for (const [cx,cy,cr] of craters) {
+        const px2 = (mx+cx*mr)|0, py2 = (my+cy*mr)|0, rr = Math.max(1,(cr*mr)|0);
+        for (let y=-rr;y<=rr;y++) for (let x=-rr;x<=rr;x++) {
+          if (x*x+y*y > rr*rr) continue;
+          const X = px2+x, Y = py2+y;
+          if (X<0||Y<0||X>=W||Y>=H) continue;
+          const o = (Y*W+X)*4;
+          buf[o] -= 30; buf[o+1] -= 30; buf[o+2] -= 28;
+        }
+      }
+    }
+
+    /* world -> view space (z positive forward). camera basis:
+       right = (cos yaw, 0, -sin yaw), fwd = (-sin yaw, 0, -cos yaw) */
+    function toView(px,py,pz, cam, out) {
+      const dx = px-cam.x, dy = py-cam.y, dz = pz-cam.z;
+      const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+      const rx = dx*cy - dz*sy;      // along right
+      const fz = -dx*sy - dz*cy;     // along forward
+      const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+      out[0] = rx;
+      out[1] = dy*cp - fz*sp;
+      out[2] = dy*sp + fz*cp;
+      return out;
+    }
+
+    const NEAR = 0.12;
+    /* clip polygon (view space, with uvs) against near plane; returns list of [x,y,z,u,v] */
+    function clipNear(poly) {
+      const out = [];
+      for (let i=0;i<poly.length;i++) {
+        const a = poly[i], b = poly[(i+1)%poly.length];
+        const ain = a[2] > NEAR, bin = b[2] > NEAR;
+        if (ain) out.push(a);
+        if (ain !== bin) {
+          const t = (NEAR - a[2]) / (b[2] - a[2]);
+          out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, NEAR,
+                    a[3]+(b[3]-a[3])*t, a[4]+(b[4]-a[4])*t]);
+        }
+      }
+      return out;
+    }
+
+    const FOV = R.fov * Math.PI/180;
+    const F = 1 / Math.tan(FOV/2);
+
+    function shadeTri(nWorld, baseColor) {
+      // flat shading from face normal
+      const l = R.light;
+      const d = Math.max(0, dot3(nWorld, [-l.dir[0], -l.dir[1], -l.dir[2]]));
+      return Math.min(1, l.ambient + d * (1 - l.ambient));
+    }
+
+    /* rasterize one projected tri. p = [{sx,sy,z,u,v}...], shade 0..1, tex or flatColor */
+    function raster(p, shade, tex, flatColor, flip, glow) {
+      let minx = W-1, maxx = 0, miny = H-1, maxy = 0;
+      for (const q of p) {
+        if (q.sx<minx) minx=q.sx; if (q.sx>maxx) maxx=q.sx;
+        if (q.sy<miny) miny=q.sy; if (q.sy>maxy) maxy=q.sy;
+      }
+      minx = Math.max(0, minx|0); maxx = Math.min(W-1, Math.ceil(maxx));
+      miny = Math.max(0, miny|0); maxy = Math.min(H-1, Math.ceil(maxy));
+      if (maxx<minx || maxy<miny) return;
+      const [a,b,c] = p;
+      const area = (b.sx-a.sx)*(c.sy-a.sy) - (c.sx-a.sx)*(b.sy-a.sy);
+      if (flip ? area >= -0.0001 : area <= 0.0001) return; // cull
+      if (R.wireframe) { drawLine(a,b); drawLine(b,c); drawLine(c,a); return; }
+      const invA = 1/area;
+      const tdata = tex ? tex.data : null, tw = tex ? tex.w : 0, th = tex ? tex.h : 0;
+      const fr = flatColor ? flatColor[0] : 0, fg = flatColor ? flatColor[1] : 0, fb = flatColor ? flatColor[2] : 0;
+      const fog = R.fog;
+      for (let y=miny;y<=maxy;y++) {
+        const row = y*W;
+        for (let x=minx;x<=maxx;x++) {
+          const w0 = ((b.sx-x)*(c.sy-y) - (c.sx-x)*(b.sy-y)) * invA;
+          const w1 = ((c.sx-x)*(a.sy-y) - (a.sx-x)*(c.sy-y)) * invA;
+          const w2 = 1 - w0 - w1;
+          if (w0 < -0.001 || w1 < -0.001 || w2 < -0.001) continue;
+          const z = w0*a.z + w1*b.z + w2*c.z;
+          const zi = row + x;
+          if (z >= zbuf[zi]) continue;
+          zbuf[zi] = z;
+          let r, g, bl;
+          if (tdata) {
+            const u = w0*a.u + w1*b.u + w2*c.u, v = w0*a.v + w1*b.v + w2*c.v;
+            let tx = (u*tw)|0, ty = (v*th)|0;
+            tx = ((tx % tw) + tw) % tw; ty = ((ty % th) + th) % th;
+            const ti = (ty*tw + tx) * 4;
+            r = tdata[ti]; g = tdata[ti+1]; bl = tdata[ti+2];
+          } else { r = fr; g = fg; bl = fb; }
+          // toon bands (cel) or dithered shade
+          let s = shade;
+          if (R.cel > 0) {
+            s = Math.ceil(s * R.cel - 1e-4) / R.cel;
+          } else if (R.dither) {
+            const th2 = BAYER[((y&3)<<2)|(x&3)] / 16;
+            s = Math.floor(s*8 + th2) / 8;
+          }
+          r = r*s; g = g*s; bl = bl*s;
+          // fog
+          if (fog && z > fog.near) {
+            const t = Math.min(1, (z - fog.near) / (fog.far - fog.near));
+            r += (fog.color[0]-r)*t; g += (fog.color[1]-g)*t; bl += (fog.color[2]-bl)*t;
+          }
+          if (glow) { r += glow[0]; g += glow[1]; bl += glow[2]; }
+          const o = zi*4;
+          buf[o] = r; buf[o+1] = g; buf[o+2] = bl; buf[o+3] = 255;
+        }
+      }
+    }
+
+    const _v = [0,0,0];
+
+    /* wireframe edge with z-test */
+    function drawLine(a, b) {
+      const x0 = a.sx|0, y0 = a.sy|0, x1 = b.sx|0, y1 = b.sy|0;
+      const n = Math.max(Math.abs(x1-x0), Math.abs(y1-y0)) || 1;
+      for (let i=0;i<=n;i++) {
+        const t = i/n;
+        const x = Math.round(x0+(x1-x0)*t), y = Math.round(y0+(y1-y0)*t);
+        if (x<0||y<0||x>=W||y>=H) continue;
+        const z = a.z+(b.z-a.z)*t, zi = y*W+x;
+        if (z < zbuf[zi]) { zbuf[zi] = z; fb32[zi] = 0xFFFFFFFF; }
+      }
+    }
+    function render() {
+      clear();
+      const cam = R.camera;
+      for (const o of R.objects) {
+        if (R.outline && o.outline !== false) drawObject(o, true);
+        drawObject(o, false);
+      }
+      /* sprites (billboards) */
+      for (const sp of R.sprites) {
+        toView(sp.x, sp.y, sp.z, cam, _v);
+        if (_v[2] < NEAR + 0.05) continue;
+        const s = F / _v[2];
+        const cxp = W/2 + _v[0]*s*(W/2), cyp = H/2 - _v[1]*s*(W/2);
+        const half = sp.size * 0.5 * s * (W/2);
+        const x0 = Math.max(0, Math.ceil(cxp-half)), x1 = Math.min(W-1, Math.floor(cxp+half));
+        const y0 = Math.max(0, Math.ceil(cyp-half)), y1 = Math.min(H-1, Math.floor(cyp+half));
+        const t = sp.tex, tw = t.w, th = t.h, td = t.data;
+        for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++) {
+          const zi = y*W+x;
+          if (_v[2] >= zbuf[zi]) continue;
+          const u = (x-(cxp-half))/(2*half), v = (y-(cyp-half))/(2*half);
+          const ti = ((((v*th)|0)*tw) + ((u*tw)|0)) * 4;
+          if (td[ti+3] < 128) continue;
+          zbuf[zi] = _v[2];
+          const o = zi*4;
+          buf[o]=td[ti]; buf[o+1]=td[ti+1]; buf[o+2]=td[ti+2]; buf[o+3]=255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    /* one object; outlinePass renders an inverted-hull toon outline */
+    function drawObject(o, outlinePass) {
+        const cam = R.camera;
+        const m = o.mesh;
+        const os = outlinePass ? 1.07 : 1;
+        // object rotation (yaw then pitch then roll), uniform scale
+        const sy = Math.sin(o.ry), cy = Math.cos(o.ry);
+        const sx = Math.sin(o.rx), cx = Math.cos(o.rx);
+        const sz = Math.sin(o.rz), cz = Math.cos(o.rz);
+        // world-space verts + view-space verts
+        const wv = new Array(m.verts.length), vv = new Array(m.verts.length);
+        for (let i=0;i<m.verts.length;i++) {
+          let [x,y,z] = m.verts[i];
+          x*=o.s*os; y*=o.s*os; z*=o.s*os;
+          // roll (z), pitch (x), yaw (y)
+          let x1 = x*cz - y*sz, y1 = x*sz + y*cz, z1 = z;
+          let y2 = y1*cx - z1*sx, z2 = y1*sx + z1*cx, x2 = x1;
+          let x3 = x2*cy + z2*sy, z3 = -x2*sy + z2*cy, y3 = y2;
+          const wx = x3+o.x, wy = y3+o.y, wz = z3+o.z;
+          wv[i] = [wx,wy,wz];
+          const v = [0,0,0];
+          toView(wx,wy,wz,cam,v);
+          vv[i] = v;
+        }
+        for (const t of m.tris) {
+          // flat normal in world space (for lighting)
+          const n = norm3(cross3(sub3(wv[t[1]],wv[t[0]]), sub3(wv[t[2]],wv[t[0]])));
+          const sh = outlinePass ? 1 : shadeTri(n);
+          let glow = null;
+          if (!outlinePass && R.lights.length) {
+            const cxp = (wv[t[0]][0]+wv[t[1]][0]+wv[t[2]][0])/3;
+            const cyp = (wv[t[0]][1]+wv[t[1]][1]+wv[t[2]][1])/3;
+            const czp = (wv[t[0]][2]+wv[t[1]][2]+wv[t[2]][2])/3;
+            let gr = 0, gg = 0, gb = 0;
+            for (const L of R.lights) {
+              const dx = cxp-L.x, dy = cyp-L.y, dz = czp-L.z;
+              const d = Math.sqrt(dx*dx+dy*dy+dz*dz);
+              if (d < L.radius) {
+                const a = 1-d/L.radius, k = a*a*L.intensity;
+                gr += L.r*k; gg += L.g*k; gb += L.b*k;
+              }
+            }
+            if (gr+gg+gb > 0.6) glow = [gr,gg,gb];
+          }
+          // build view-space poly with uvs
+          const poly = t.map(vi => { const v = vv[vi], uv = m.uvs[vi]; return [v[0],v[1],v[2],uv[0],uv[1]]; });
+          const clipped = clipNear(poly);
+          if (clipped.length < 3) continue;
+          // project
+          const proj = clipped.map(q => {
+            const s = F / q[2];
+            return { sx: W/2 + q[0]*s*(W/2), sy: H/2 - q[1]*s*(W/2), z: q[2], u: q[3], v: q[4] };
+          });
+          // fan triangulation
+          for (let k=1;k<proj.length-1;k++) raster([proj[0],proj[k],proj[k+1]], sh, outlinePass ? null : m.tex, outlinePass ? [12,9,22] : m.flatColor, outlinePass, glow);
+        }
+    }
+
+    R.render = render;
+    return R;
+  }
+
+  return { create, makeTexture, TEX, cube, plane, pyramid, prism };
+})();
+
+/* =====================================================================
+   EMBERGROVE — a cozy lantern-keeping tale.
+   You are Pip, the littlest lantern-keeper. Eight stone lanterns have
+   gone dark across the grove. Wander the eternal dusk, talk to friends,
+   and give the lanterns back their light. No fail state. Just vibes.
+   Built on the CHUNK3D engine (cel bands + toon outlines enabled).
+   ===================================================================== */
+const canvas = document.getElementById('screen');
+const G3 = Pixel3D.create(canvas, 384, 216);
+G3.cel = 3;                 // 3 toon shading bands
+G3.outline = true;          // inverted-hull outlines
+G3.dither = false;
+G3.fog = { color:[26,16,44], near: 22, far: 55 };
+G3.skyTop = [40,24,72]; G3.skyBot = [104,56,92];   // eternal dusk
+G3.light.dir = [-0.45,-0.8,-0.4];
+G3.light.ambient = 0.45;
+
+/* ---------------- procedural textures ---------------- */
+const barkTex = Pixel3D.makeTexture(64, (c,s) => {
+  c.fillStyle = '#5d4226'; c.fillRect(0,0,s,s);
+  c.fillStyle = '#4a3319';
+  for (let i=0;i<24;i++){ const x=(Math.random()*s)|0; c.fillRect(x,0,3,s); }
+  c.fillStyle = '#6e5130';
+  for (let i=0;i<16;i++){ const x=(Math.random()*s)|0; c.fillRect(x,(Math.random()*s)|0,2,8); }
+});
+const leafTex = Pixel3D.makeTexture(64, (c,s) => {
+  c.fillStyle = '#2e6b2e'; c.fillRect(0,0,s,s);
+  for (let i=0;i<120;i++){ c.fillStyle=['#357a33','#275f27','#3f8a3a'][(Math.random()*3)|0];
+    const r=2+(Math.random()*4)|0; c.beginPath(); c.arc((Math.random()*s)|0,(Math.random()*s)|0,r,0,7); c.fill(); }
+});
+const leafTex2 = Pixel3D.makeTexture(64, (c,s) => {
+  c.fillStyle = '#3f8a3a'; c.fillRect(0,0,s,s);
+  for (let i=0;i<120;i++){ c.fillStyle=['#4a9a44','#357a33','#55a84e'][(Math.random()*3)|0];
+    const r=2+(Math.random()*4)|0; c.beginPath(); c.arc((Math.random()*s)|0,(Math.random()*s)|0,r,0,7); c.fill(); }
+});
+const stoneTex = Pixel3D.makeTexture(64, (c,s) => {
+  c.fillStyle = '#7a7a86'; c.fillRect(0,0,s,s);
+  c.fillStyle = '#6a6a76';
+  for (let i=0;i<20;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,10,7);
+  c.fillStyle = '#5a7a4a'; // moss spots
+  for (let i=0;i<14;i++){ c.beginPath(); c.arc((Math.random()*s)|0,(Math.random()*s)|0,3,0,7); c.fill(); }
+  c.strokeStyle = '#4c4c58'; c.lineWidth = 2;
+  for (let i=1;i<4;i++){ c.beginPath(); c.moveTo(0,i*16); c.lineTo(s,i*16); c.stroke(); }
+});
+const paperOffTex = Pixel3D.makeTexture(32, (c,s) => {
+  c.fillStyle = '#8e96ad'; c.fillRect(0,0,s,s);
+  c.strokeStyle = '#3a3f52'; c.lineWidth = 3; c.strokeRect(2,2,s-4,s-4);
+  c.beginPath(); c.moveTo(s/2,0); c.lineTo(s/2,s); c.stroke();
+});
+const paperOnTex = Pixel3D.makeTexture(32, (c,s) => {
+  const g = c.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+  g.addColorStop(0,'#fff6c8'); g.addColorStop(0.55,'#ffbe4a'); g.addColorStop(1,'#c76a1e');
+  c.fillStyle = g; c.fillRect(0,0,s,s);
+  c.strokeStyle = '#5a3410'; c.lineWidth = 3; c.strokeRect(2,2,s-4,s-4);
+  c.beginPath(); c.moveTo(s/2,0); c.lineTo(s/2,s); c.stroke();
+});
+const glowTex = Pixel3D.makeTexture(64, (c,s) => {
+  const g = c.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+  g.addColorStop(0,'rgba(255,220,130,255)'); g.addColorStop(0.4,'rgba(255,180,80,160)');
+  g.addColorStop(1,'rgba(255,160,60,0)');
+  c.fillStyle = g; c.fillRect(0,0,s,s);
+});
+const fireflyTex = Pixel3D.makeTexture(16, (c,s) => {
+  const g = c.createRadialGradient(s/2,s/2,1,s/2,s/2,s/2);
+  g.addColorStop(0,'rgba(255,255,200,255)'); g.addColorStop(0.5,'rgba(255,240,150,200)');
+  g.addColorStop(1,'rgba(255,240,150,0)');
+  c.fillStyle = g; c.fillRect(0,0,s,s);
+});
+function flowerTexMake(petal) {
+  return Pixel3D.makeTexture(32, (c,s) => {
+    c.strokeStyle = '#2e6b2e'; c.lineWidth = 3;
+    c.beginPath(); c.moveTo(s/2,s); c.lineTo(s/2,s/2+4); c.stroke();
+    c.fillStyle = petal;
+    for (let i=0;i<5;i++){ const a=i/5*Math.PI*2;
+      c.beginPath(); c.arc(s/2+Math.cos(a)*7, s/2+2+Math.sin(a)*7, 5, 0, 7); c.fill(); }
+    c.fillStyle = '#ffe14d'; c.beginPath(); c.arc(s/2,s/2+2,4,0,7); c.fill();
+  });
+}
+const flowerTexes = [flowerTexMake('#ff9ec6'), flowerTexMake('#ffffff'), flowerTexMake('#c6a6ff')];
+const groundTex = Pixel3D.makeTexture(256, (c,s) => {
+  c.fillStyle = '#3d7a3a'; c.fillRect(0,0,s,s);
+  for (let i=0;i<1100;i++){ c.fillStyle=['#35702f','#468a3e','#2f6b33'][(Math.random()*3)|0];
+    c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,4,4); }
+  // dirt path: bottom-center winding up
+  c.lineCap = 'round';
+  c.strokeStyle = '#6e5a3a'; c.lineWidth = 30; c.beginPath(); c.moveTo(128,262);
+  c.bezierCurveTo(108,195, 150,150, 128,95); c.bezierCurveTo(118,62, 126,38, 128,8); c.stroke();
+  c.strokeStyle = '#8a6f4d'; c.lineWidth = 22; c.beginPath(); c.moveTo(128,262);
+  c.bezierCurveTo(108,195, 150,150, 128,95); c.bezierCurveTo(118,62, 126,38, 128,8); c.stroke();
+  // pond
+  c.fillStyle = '#2c5a8a'; c.beginPath(); c.ellipse(178,88,38,28,0.3,0,7); c.fill();
+  c.fillStyle = '#4a86c2'; c.beginPath(); c.ellipse(171,83,27,19,0.3,0,7); c.fill();
+  c.fillStyle = '#3f8f4f';
+  for (let i=0;i<8;i++){ const a=Math.random()*6.28, r=6+Math.random()*18;
+    c.beginPath(); c.arc(178+Math.cos(a)*r, 88+Math.sin(a)*r*0.7, 4, 0, 7); c.fill(); }
+  // soft vignette
+  const g = c.createRadialGradient(128,128,95,128,128,185);
+  g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(8,18,10,0.6)');
+  c.fillStyle = g; c.fillRect(0,0,s,s);
+});
+
+const bearFaceTex = Pixel3D.makeTexture(32, (c,s) => {
+  // note: cube UVs flip V, so paint upside-down
+  c.fillStyle = '#96714a'; c.fillRect(0,0,s,s);
+  c.fillStyle = '#241a12';
+  c.fillRect(7,16,5,7); c.fillRect(20,16,5,7);
+  c.fillStyle = '#fff'; c.fillRect(8,20,2,2); c.fillRect(21,20,2,2);
+  c.fillStyle = '#e8d2b4'; c.fillRect(9,4,14,10);
+  c.fillStyle = '#241a12'; c.fillRect(13,7,6,5);
+  c.strokeStyle = '#241a12'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(16,7); c.lineTo(16,4); c.stroke();
+});
+const mothFaceTex = Pixel3D.makeTexture(32, (c,s) => {
+  // note: cube UVs flip V, so paint upside-down
+  c.fillStyle = '#96949e'; c.fillRect(0,0,s,s);
+  c.fillStyle = '#2a2430';
+  c.beginPath(); c.arc(10,19,6,0,7); c.fill();
+  c.beginPath(); c.arc(22,19,6,0,7); c.fill();
+  c.fillStyle = '#fff';
+  c.beginPath(); c.arc(12,21,2,0,7); c.fill();
+  c.beginPath(); c.arc(24,21,2,0,7); c.fill();
+});
+const shimmerTex = Pixel3D.makeTexture(32, (c,s) => {
+  c.fillStyle = 'rgba(190,225,255,200)'; c.fillRect(4,13,24,3);
+  c.fillStyle = 'rgba(190,225,255,110)'; c.fillRect(8,10,16,9);
+});
+const lilyTex = Pixel3D.makeTexture(16, (c,s) => {
+  c.fillStyle = '#3f8f4f'; c.beginPath(); c.arc(8,8,7,0,7); c.fill();
+  c.fillStyle = '#55aa5f'; c.beginPath(); c.arc(6,6,3,0,7); c.fill();
+});
+const tuftTex = Pixel3D.makeTexture(16, (c,s) => {
+  c.strokeStyle = '#4a9a44'; c.lineWidth = 2; c.lineCap = 'round';
+  const blades = [[8,16,8,4],[5,16,3,8],[11,16,13,8],[8,16,6,10],[8,16,10,10]];
+  for (const [x0,y0,x1,y1] of blades) { c.beginPath(); c.moveTo(x0,y0); c.lineTo(x1,y1); c.stroke(); }
+});
+const pollenTex = Pixel3D.makeTexture(16, (c,s) => {
+  const g = c.createRadialGradient(8,8,1,8,8,8);
+  g.addColorStop(0,'rgba(255,250,225,170)'); g.addColorStop(1,'rgba(255,250,225,0)');
+  c.fillStyle = g; c.fillRect(0,0,s,s);
+});
+
+/* ---------------- world ---------------- */
+const rnd = (a,b) => a + Math.random()*(b-a);
+const colliders = [];   // {x,z,r}
+const POND = { x: 11.7, z: -9.4, rx: 6.3, rz: 4.7 };
+
+const ground = G3.add(Pixel3D.plane(groundTex, 1), { y:0, s:30, outline:false });
+
+function makeTree(x, z) {
+  const s = rnd(0.85, 1.3);
+  G3.add(Pixel3D.prism(6, 0.22, 0.34, 2.4, barkTex), { x, z, y:0, s });
+  G3.add(Pixel3D.prism(6, 0.12, 1.7, 2.1, leafTex), { x, z, y:1.8, ry:rnd(0,3), s });
+  G3.add(Pixel3D.prism(6, 0.06, 1.1, 1.5, leafTex2), { x, z, y:3.2, ry:rnd(0,3), s });
+  colliders.push({ x, z, r: 0.7*s });
+}
+function clearOf(x, z) {
+  if (Math.abs(x) < 4.2 && z > -20 && z < 16) return false;                    // path
+  const pe = ((x-POND.x)/8.2)**2 + ((z-POND.z)/6.2)**2; if (pe < 1) return false; // pond
+  if (Math.hypot(x, z-14) < 4.5) return false;                                  // spawn
+  for (const l of LANTERN_POS) if (Math.hypot(x-l[0], z-l[1]) < 2.2) return false;
+  return true;
+}
+const LANTERN_POS = [[2.2,12],[-2.2,8],[2.2,4],[-2.2,0],[2.2,-4],[-2.2,-8],[2.2,-12],[-1.2,-16]];
+{
+  let placed = 0, guard = 0;
+  while (placed < 18 && guard++ < 400) {
+    const x = rnd(-25,25), z = rnd(-25,25);
+    if (!clearOf(x,z)) continue;
+    let ok = true;
+    for (const c of colliders) if (Math.hypot(x-c.x, z-c.z) < 3.2) { ok = false; break; }
+    if (!ok) continue;
+    makeTree(x, z); placed++;
+  }
+}
+
+/* lanterns */
+const lanterns = [];
+for (const [x,z] of LANTERN_POS) {
+  G3.add(Pixel3D.cube(stoneTex), { x, z, y:0.28, s:0.55 });
+  G3.add(Pixel3D.prism(6, 0.16, 0.2, 0.9, stoneTex), { x, z, y:0.55 });
+  const glass = G3.add(Pixel3D.cube(paperOffTex), { x, z, y:1.35, s:0.5 });
+  G3.add(Pixel3D.pyramid([122,122,134]), { x, z, y:1.62, s:0.62 });
+  const glow = G3.addSprite(x, 1.35, z, 0.01, glowTex); // size ~0 = hidden
+  colliders.push({ x, z, r: 0.55 });
+  lanterns.push({ x, z, lit:false, glass, glow, ph: rnd(0,6.28) });
+}
+
+/* flowers */
+for (let i=0;i<70;i++) {
+  const x = rnd(-26,26), z = rnd(-26,26);
+  if (!clearOf(x,z)) continue;
+  const pe = ((x-POND.x)/8.2)**2 + ((z-POND.z)/6.2)**2; if (pe < 1) continue;
+  G3.addSprite(x, 0.28, z, rnd(0.35,0.55), flowerTexes[(Math.random()*3)|0]);
+}
+
+/* fireflies */
+const fireflies = [];
+for (let i=0;i<44;i++) {
+  const sp = G3.addSprite(rnd(-24,24), rnd(0.6,2.6), rnd(-24,24), 0.16, fireflyTex);
+  fireflies.push({ sp, ax: sp.x, az: sp.z, ph: rnd(0,6.28), sp2: rnd(0.5,1.4) });
+}
+/* pond shimmer streaks + lily pads */
+const shimmers = [];
+for (let i=0;i<4;i++) {
+  const sp = G3.addSprite(POND.x+rnd(-4,4), 0.15, POND.z+rnd(-3,3), rnd(0.5,0.9), shimmerTex);
+  shimmers.push({ sp, ph: rnd(0,6.28) });
+}
+const lilies = [];
+for (let i=0;i<5;i++) {
+  const sp = G3.addSprite(POND.x+rnd(-4,4), 0.12, POND.z+rnd(-3,3), rnd(0.3,0.5), lilyTex);
+  lilies.push({ sp, ph: rnd(0,6.28) });
+}
+/* grass tufts along the path */
+for (let i=0;i<44;i++) {
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const x = side * rnd(2.4, 4.2), z = rnd(-18, 14);
+  G3.addSprite(x, 0.16, z, rnd(0.28,0.45), tuftTex);
+}
+/* drifting pollen */
+const pollens = [];
+for (let i=0;i<22;i++) {
+  const sp = G3.addSprite(rnd(-24,24), rnd(0.5,3), rnd(-24,24), 0.09, pollenTex);
+  pollens.push({ sp, ax: sp.x, az: sp.z, ph: rnd(0,6.28), sp2: rnd(0.2,0.6) });
+}
+/* beacon over nearest unlit lantern */
+const beacon = G3.addSprite(0, 3.4, 0, 0.9, glowTex);
+
+/* ---------------- characters (low-poly, cel shaded) ---------------- */
+const FUR = [150,105,70], FUR_D = [120,82,54], CREAM = [232,210,180];
+function boxy(texOrColor, x,y,z, sx,sy,sz, ry, tex) {
+  const m = Pixel3D.cube(null);
+  const o = G3.add(m, { x, y, z, ry: ry||0 });
+  // non-uniform scale via mesh copy (engine scales uniformly, so bake it)
+  o.mesh = { verts: m.verts.map(v => [v[0]*sx, v[1]*sy, v[2]*sz]),
+             uvs: m.uvs, tris: m.tris, tex: tex||null, flatColor: tex ? null : texOrColor };
+  return o;
+}
+/* Bramble the bear — napping under his tree */
+const bear = { x:-8.5, z:7, parts:[] };
+{
+  const b = bear.parts;
+  b.push(boxy(FUR, bear.x, 0.55, bear.z, 0.95, 0.85, 0.8, 0.4));
+  b.push(boxy(FUR, bear.x+0.15, 1.25, bear.z+0.1, 0.62, 0.58, 0.58, 0.4));
+  b.push(boxy(FUR_D, bear.x-0.1, 1.62, bear.z+0.05, 0.2, 0.2, 0.18, 0));
+  b.push(boxy(FUR_D, bear.x+0.42, 1.62, bear.z+0.05, 0.2, 0.2, 0.18, 0));
+  /* snout is painted on the face plate (head half-depth is 0.58) */
+  b.push(boxy(null, bear.x+0.15+0.389*0.65, 1.2, bear.z+0.1+0.921*0.65, 0.68, 0.62, 0.04, 0.4, bearFaceTex));
+  makeTree(bear.x-2.2, bear.z-1.5);
+  colliders.push({ x: bear.x, z: bear.z, r: 1.0 });
+}
+/* Wren the hummingbird — flits between flower patches */
+const wren = { wp: [[-5,2.4,-3],[6,2.2,2],[-2,2.6,-11]], wi: 0, t: 0, parts: [] };
+{
+  const w = wren.parts;
+  w.body = boxy([70,200,178], 0, 0, 0, 0.26, 0.22, 0.42, 0);
+  w.wingL = boxy([140,230,210], 0, 0, 0, 0.3, 0.04, 0.2, 0);
+  w.wingR = boxy([140,230,210], 0, 0, 0, 0.3, 0.04, 0.2, 0);
+  w.beak = boxy([60,50,60], 0, 0, 0, 0.06, 0.06, 0.22, 0);
+}
+/* Moss the frog — by the pond */
+const moss = { x: POND.x, z: POND.z + POND.rz + 0.9, parts: [], croak: 0 };
+{
+  const m = moss.parts;
+  m.push(boxy([96,186,96], moss.x, 0.32, moss.z, 0.55, 0.45, 0.6, 0.3));
+  m.push(boxy([220,240,220], moss.x-0.14, 0.68, moss.z+0.12, 0.18, 0.18, 0.18, 0));
+  m.push(boxy([220,240,220], moss.x+0.14, 0.68, moss.z+0.12, 0.18, 0.18, 0.18, 0));
+  m.push(boxy([30,40,30], moss.x-0.14, 0.7, moss.z+0.2, 0.09, 0.09, 0.06, 0));
+  m.push(boxy([30,40,30], moss.x+0.14, 0.7, moss.z+0.2, 0.09, 0.09, 0.06, 0));
+  colliders.push({ x: moss.x, z: moss.z, r: 0.7 });
+}
+/* the Moth of Dusk — perched on the last lantern, shy */
+const moth = { x: LANTERN_POS[7][0]+0.8, z: LANTERN_POS[7][1], y: 2.35, parts: [], flying: false, ft: 0 };
+{
+  const m = moth.parts;
+  m.push(boxy([150,148,160], moth.x, moth.y, moth.z, 0.3, 0.34, 0.3, 0));
+  m.wingL = boxy([190,188,205], moth.x, moth.y+0.1, moth.z, 0.34, 0.05, 0.42, 0.3);
+  m.wingR = boxy([190,188,205], moth.x, moth.y+0.1, moth.z, 0.34, 0.05, 0.42, -0.3);
+  m.push(boxy(null, moth.x+0.34, moth.y+0.02, moth.z, 0.04, 0.22, 0.24, 0, mothFaceTex));
+}
+
+/* ---------------- dialogue ---------------- */
+const dlgEl = document.getElementById('dlg');
+let dlgQueue = [], dlgOpen = false;
+function say(name, lines) {
+  for (const t of lines) dlgQueue.push({ name, text: t });
+  if (!dlgOpen) nextDlg();
+}
+function nextDlg() {
+  const l = dlgQueue.shift();
+  if (!l) { dlgOpen = false; dlgEl.style.display = 'none'; return; }
+  dlgOpen = true;
+  document.getElementById('dlgName').textContent = l.name;
+  document.getElementById('dlgText').textContent = l.text;
+  dlgEl.style.display = 'block';
+}
+
+/* ---------------- interaction ---------------- */
+const interactables = [];
+for (const L of lanterns) interactables.push({ x:L.x, z:L.z, r:2.6, kind:'lantern', ref:L });
+interactables.push({ x:bear.x, z:bear.z, r:2.8, kind:'bear' });
+interactables.push({ x:moss.x, z:moss.z, r:2.8, kind:'frog' });
+const promptEl = document.getElementById('prompt');
+let promptTarget = null, talked = {};
+
+const BEAR_TALK = [
+  "Mmm... five more minutes... Oh! A lantern-keeper! It's been simply ages.",
+  "The lanterns? Easy, little one. Walk up to a dark one and press E. They remember your light.",
+  "When all eight are warm again, come find me. I'll... zzz... be right here.",
+];
+const WREN_TALK = [
+  "Pip! You're awake! Did you feel it? The grove's been holding its breath.",
+  "The Moth of Dusk gathered up all the dusk-light. I don't think it meant harm — it's just afraid of the dark.",
+  "Light the lanterns and see. Kindness first, always. That's the keeper way!",
+];
+const FROG_TALK = [
+  "Ribbit! A keeper! Mind the pond — it's deeper than my singing voice, and that's saying something.",
+  "Lost? Follow the fireflies. They gossip terribly, but they always know where the dark lanterns are.",
+  "Ribbit ribbit... that's frog for 'you've got this.'",
+];
+const MOTH_TALK = ["...please... don't... the dark is so big..."];
+
+function lightLantern(L) {
+  if (L.lit) { say('Pip', ["This one's already warm."]); return; }
+  L.lit = true;
+  L.glass.mesh.tex = paperOnTex;
+  L.glow.size = 2.2;
+  G3.lights.push({ x:L.x, y:1.6, z:L.z, r:255, g:150, b:70, intensity:0.55, radius:10 });
+  chime();
+  const n = lanterns.filter(l => l.lit).length;
+  document.getElementById('hLant').textContent = n;
+  const notes = [
+    "The lantern drinks your light. It hums, low and happy.",
+    "Warmth spreads up the stone like sunrise.",
+    "Somewhere, a firefly applauds.",
+    "The dusk feels a little less heavy.",
+  ];
+  toast(`🏮 ${n} / 8`);
+  say('Pip', [notes[(Math.random()*notes.length)|0]]);
+  if (n >= lanterns.length) setTimeout(finale, 1600);
+}
+
+function interact(t) {
+  if (t.kind === 'lantern') lightLantern(t.ref);
+  else if (t.kind === 'bear') {
+    say('Bramble 🐻', talked.bear ? ["Zzz... lanterns... press E... zzz..."] : BEAR_TALK);
+    talked.bear = true;
+  }
+  else if (t.kind === 'frog') {
+    moss.croak = 1;
+    say('Moss 🐸', talked.frog ? ["Ribbit! Still here. Still rooting for you."] : FROG_TALK);
+    talked.frog = true;
+  }
+  else if (t.kind === 'wren') {
+    say('Wren 🐦', talked.wren ? ["Kindness first, always!"] : WREN_TALK);
+    talked.wren = true;
+  }
+  else if (t.kind === 'moth') say('Moth 🌙', MOTH_TALK);
+}
+
+/* ---------------- finale ---------------- */
+let won = false;
+function finale() {
+  if (won) return; won = true;
+  moth.flying = true;
+  fanfare();
+  say('???', [
+    "The last lantern catches... and the grove exhales.",
+    "From the tallest stone, something small and grey flutters down, trembling.",
+    "The Moth of Dusk. It wasn't stealing the light. It was hiding from the dark.",
+  ]);
+  setTimeout(() => {
+    say('Pip', [
+      "You cup your lantern-light around it, gentle as a secret.",
+      "The moth glows — warm and amber — and settles on the tallest lantern to keep watch.",
+      "🌟 The grove glows again. Thank you for playing, keeper. 🌟",
+    ]);
+    for (const f of fireflies) { f.sp.size = 0.3; }
+    toast('🌟 EMBERGROVE glows again 🌟', 8000);
+  }, 9000);
+}
+
+/* ---------------- toast / hud ---------------- */
+const toastEl = document.getElementById('toast');
+function toast(t, ms) {
+  toastEl.textContent = t; toastEl.style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toastEl.style.display = 'none', ms || 1800);
+}
+
+/* ---------------- input ---------------- */
+const keys = {};
+let started = false;
+addEventListener('keydown', e => {
+  if (e.code === 'KeyM') { musicOn = !musicOn; toast(musicOn ? '♪ music on' : '♪ music off'); return; }
+  if (!started) return;
+  if (e.code === 'KeyE') {
+    if (dlgOpen) nextDlg();
+    else if (promptTarget) interact(promptTarget);
+    return;
+  }
+  keys[e.code] = true;
+  if (['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => keys[e.code] = false);
+
+let dragging = false, lx = 0, ly = 0;
+canvas.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') return; // touch look handled by touch handlers below
+  dragging = true; lx = e.clientX; ly = e.clientY;
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' || !dragging) return;
+  const cam = G3.camera;
+  cam.yaw -= (e.clientX - lx) * 0.0045;
+  cam.pitch = Math.max(-1.2, Math.min(1.2, cam.pitch - (e.clientY - ly) * 0.0045));
+  lx = e.clientX; ly = e.clientY;
+});
+canvas.addEventListener('pointerup', () => dragging = false);
+canvas.addEventListener('pointercancel', () => dragging = false);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+// touch controls: visible joystick (left) to walk, drag right side to look, ✦ button = E
+const moveTouch = { x:0, y:0, id:null };
+const lookTouch = { id:null, lx:0, ly:0 };
+const JOY_R = 46;
+if ('ontouchstart' in window) {
+  const touchUI = document.getElementById('touchUI');
+  const joyEl = document.getElementById('joy');
+  const knobEl = document.getElementById('joyKnob');
+  const actBtn = document.getElementById('tAct');
+  touchUI.style.display = 'block';
+  document.getElementById('help').textContent = 'left stick walk · drag right side to look · ✦ interact';
+  document.querySelector('#splash .begin').textContent = '✦ tap to wake up ✦';
+  const joyCenter = () => {
+    const r = joyEl.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  };
+  const setKnob = (dx, dy) => { knobEl.style.transform = `translate(${dx}px,${dy}px)`; };
+  const updateJoy = t => {
+    const c = joyCenter();
+    let dx = t.clientX - c.x, dy = t.clientY - c.y;
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { dx = dx/d*JOY_R; dy = dy/d*JOY_R; }
+    setKnob(dx, dy);
+    const dz = 7; // deadzone px
+    moveTouch.x = Math.abs(dx) < dz ? 0 : dx/JOY_R;
+    moveTouch.y = Math.abs(dy) < dz ? 0 : dy/JOY_R;
+  };
+  joyEl.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const t = e.changedTouches[0];
+    moveTouch.id = t.identifier;
+    updateJoy(t);
+  }, { passive: false });
+  // look: drag anywhere on the right 55% of the screen (not on the ✦ button)
+  canvas.addEventListener('touchstart', e => {
+    for (const t of e.changedTouches) {
+      if (t.clientX > innerWidth*0.45 && lookTouch.id === null && moveTouch.id !== t.identifier) {
+        lookTouch.id = t.identifier; lookTouch.lx = t.clientX; lookTouch.ly = t.clientY;
+      }
+    }
+  }, { passive: true });
+  window.addEventListener('touchmove', e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === moveTouch.id) updateJoy(t);
+      else if (t.identifier === lookTouch.id) {
+        cam.yaw -= (t.clientX - lookTouch.lx) * 0.0052;
+        cam.pitch = Math.max(-1.1, Math.min(1.1, cam.pitch - (t.clientY - lookTouch.ly) * 0.0052));
+        lookTouch.lx = t.clientX; lookTouch.ly = t.clientY;
+      }
+    }
+  }, { passive: true });
+  const endTouch = e => {
+    for (const t of e.changedTouches) {
+      if (t.identifier === moveTouch.id) {
+        moveTouch.id = null; moveTouch.x = moveTouch.y = 0; setKnob(0, 0);
+      }
+      if (t.identifier === lookTouch.id) lookTouch.id = null;
+    }
+  };
+  window.addEventListener('touchend', endTouch);
+  window.addEventListener('touchcancel', endTouch);
+  actBtn.addEventListener('click', () => {
+    if (dlgOpen) nextDlg(); else if (promptTarget) interact(promptTarget);
+  });
+  // pulse the ✦ button when there's something to interact with
+  setInterval(() => actBtn.classList.toggle('ready', !!(dlgOpen || promptTarget)), 350);
+}
+
+/* ---------------- generative music-box ---------------- */
+let AC = null, musicOn = true, nextNote = 0, nextPad = 0;
+function ac() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+function tone(freq, t, dur, type, vol) {
+  const a = ac(), o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(a.destination);
+  o.start(t); o.stop(t + dur + 0.05);
+}
+const PENTA = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.7];
+function chime() { const a = ac(), t = a.currentTime;
+  tone(1046.5, t, 0.9, 'sine', 0.12); tone(1318.5, t+0.09, 1.1, 'sine', 0.1); }
+function fanfare() { const a = ac(), t = a.currentTime;
+  [523.25,659.25,783.99,1046.5,1318.5].forEach((f,i) => tone(f, t+i*0.14, 1.4, 'triangle', 0.1)); }
+function music(t) {
+  if (!musicOn || !started) return;
+  const a = ac(), now = a.currentTime;
+  if (now >= nextNote) {
+    tone(PENTA[(Math.random()*PENTA.length)|0], now, 2.2, 'triangle', 0.05);
+    nextNote = now + 1.4 + Math.random()*1.6;
+  }
+  if (now >= nextPad) {
+    tone(261.6, now, 6, 'sine', 0.025); tone(392.0, now, 6, 'sine', 0.02);
+    nextPad = now + 14 + Math.random()*6;
+  }
+}
+
+/* ---------------- start ---------------- */
+const cam = G3.camera;
+cam.x = 0; cam.y = 1.6; cam.z = 14; cam.yaw = 0; cam.pitch = -0.04;
+document.getElementById('splash').addEventListener('click', () => {
+  document.getElementById('splash').style.display = 'none';
+  document.getElementById('hud').style.display = 'block';
+  started = true; ac();
+  say('???', [
+    "Pip... little keeper... wake up.",
+    "The eight lanterns have gone dark, and the grove is holding its breath.",
+    "Walk the path. Press E to talk, and E to share your light. No rush — the dusk will wait.",
+  ]);
+});
+// wren + moth interactables follow their characters (live positions)
+const wrenInter = { x:0, z:0, r:3.2, kind:'wren' };
+const mothInter = { x:moth.x, z:moth.z, r:2.6, kind:'moth' };
+interactables.push(wrenInter, mothInter);
+
+/* ---------------- main loop ---------------- */
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  const t = now/1000;
+  G3.time = t;
+
+  /* movement (paused while dialogue open... softly: allow look, not walk) */
+  if (started && !dlgOpen) {
+    const sp = 4.6*dt;
+    const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+    let mx = 0, mz = 0;
+    if (keys.KeyW || keys.ArrowUp) { mx += -sy; mz += -cy; }
+    if (keys.KeyS || keys.ArrowDown) { mx += sy; mz += cy; }
+    if (keys.KeyA) { mx += -cy; mz += sy; }
+    if (keys.KeyD) { mx += cy; mz += -sy; }
+    // virtual joystick: x = strafe, y = forward/back, rotated by camera yaw
+    // (joystick up = forward, so forward amount is -moveTouch.y)
+    const jy = -moveTouch.y, jx = moveTouch.x;
+    mx += (-sy)*jy + cy*jx;
+    mz += (-cy)*jy + (-sy)*jx;
+    const ml = Math.hypot(mx, mz);
+    if (ml > 0.05) { const k = Math.min(1, ml); cam.x += mx/ml*k*sp; cam.z += mz/ml*k*sp; }
+    // head bob
+    cam.y = 1.6 + (ml > 0.05 ? Math.sin(t*9)*0.05 : Math.sin(t*1.8)*0.02);
+    // bounds
+    cam.x = Math.max(-26, Math.min(26, cam.x));
+    cam.z = Math.max(-26, Math.min(26, cam.z));
+    // circle colliders
+    for (const c of colliders) {
+      const dx = cam.x-c.x, dz = cam.z-c.z, d = Math.hypot(dx,dz);
+      if (d < c.r && d > 0.001) { cam.x = c.x + dx/d*c.r; cam.z = c.z + dz/d*c.r; }
+    }
+    // pond pushout
+    const pe = ((cam.x-POND.x)/POND.rx)**2 + ((cam.z-POND.z)/POND.rz)**2;
+    if (pe < 1) {
+      const a = Math.atan2((cam.z-POND.z)/POND.rz, (cam.x-POND.x)/POND.rx);
+      cam.x = POND.x + Math.cos(a)*POND.rx; cam.z = POND.z + Math.sin(a)*POND.rz;
+    }
+  }
+
+  /* wren flits */
+  {
+    const wp = wren.wp[wren.wi];
+    const dx = wp[0]-wren.parts.body.x, dy = wp[1]-wren.parts.body.y, dz = wp[2]-wren.parts.body.z;
+    const d = Math.hypot(dx,dy,dz);
+    if (d < 0.4) wren.wi = (wren.wi+1) % wren.wp.length;
+    else {
+      const v = 2.2*dt;
+      for (const p of [wren.parts.body, wren.parts.wingL, wren.parts.wingR, wren.parts.beak]) {
+        p.x += dx/d*v; p.y += dy/d*v; p.z += dz/d*v;
+        p.ry = Math.atan2(-dx, -dz);
+      }
+    }
+    const flap = Math.sin(t*28)*0.6;
+    const b = wren.parts.body;
+    wren.parts.wingL.x = b.x - 0.22; wren.parts.wingL.z = b.z;
+    wren.parts.wingR.x = b.x + 0.22; wren.parts.wingR.z = b.z;
+    wren.parts.wingL.y = wren.parts.wingR.y = b.y + 0.1 + Math.abs(flap)*0.1;
+    wren.parts.wingL.rz = flap; wren.parts.wingR.rz = -flap;
+    wren.parts.beak.x = b.x - Math.sin(b.ry)*0.3; wren.parts.beak.z = b.z - Math.cos(b.ry)*0.3;
+    wren.parts.beak.y = b.y;
+    wrenInter.x = b.x; wrenInter.z = b.z;
+    mothInter.x = moth.parts[0].x; mothInter.z = moth.parts[0].z;
+  }
+  /* bear breathing */
+  bear.parts[0].y = 0.55 + Math.sin(t*1.4)*0.03;
+  /* frog croak hop */
+  if (moss.croak > 0) {
+    moss.croak = Math.max(0, moss.croak - dt*2);
+    const h = Math.sin(moss.croak*Math.PI)*0.25;
+    for (const p of moss.parts) { if (p.y0 === undefined) p.y0 = p.y; p.y = p.y0 + h; }
+  }
+  /* moth: shy tremble, then finale flight */
+  if (!moth.flying) {
+    moth.parts[0].x = moth.x + Math.sin(t*7)*0.015;
+    const f = Math.sin(t*9)*0.25;
+    moth.parts.wingL.rz = 0.3 + f; moth.parts.wingR.rz = -0.3 - f;
+  } else {
+    moth.ft += dt;
+    const k = Math.min(1, moth.ft/4);
+    const tx = LANTERN_POS[0][0], tz = LANTERN_POS[0][1];
+    for (const p of moth.parts) {
+      p.x += (tx - p.x)*dt*0.8; p.z += (tz - p.z)*dt*0.8;
+      p.y += ((3.6 + Math.sin(t*3)*0.2) - p.y)*dt*0.8;
+    }
+    const f = Math.sin(t*16)*0.5;
+    moth.parts.wingL.rz = 0.2 + f; moth.parts.wingR.rz = -0.2 - f;
+  }
+
+  /* lantern glow pulse */
+  for (const L of lanterns) if (L.lit) L.glow.size = 2.1 + Math.sin(t*2.4 + L.ph)*0.25;
+
+  /* fireflies drift */
+  for (const f of fireflies) {
+    f.sp.x = f.ax + Math.sin(t*f.sp2 + f.ph)*1.6;
+    f.sp.z = f.az + Math.cos(t*f.sp2*0.8 + f.ph)*1.6;
+    f.sp.y = 1.4 + Math.sin(t*1.7 + f.ph)*0.7;
+    if (!f.home) {
+      const lit = lanterns.filter(l => l.lit);
+      if (lit.length && Math.random() < 0.002) {
+        const L = lit[(Math.random()*lit.length)|0];
+        f.ax = L.x + rnd(-2,2); f.az = L.z + rnd(-2,2);
+      }
+    }
+  }
+  /* pond life */
+  for (const s of shimmers) {
+    s.sp.x += Math.sin(t*0.7 + s.ph)*dt*0.35;
+    s.sp.size = 0.65 + Math.sin(t*1.3 + s.ph)*0.15;
+  }
+  for (const l of lilies) l.sp.y = 0.12 + Math.sin(t*1.1 + l.ph)*0.03;
+  /* pollen drift */
+  for (const p of pollens) {
+    p.sp.x = p.ax + Math.sin(t*p.sp2 + p.ph)*2.2;
+    p.sp.z = p.az + Math.cos(t*p.sp2*0.7 + p.ph)*2.2;
+    p.sp.y += dt*0.12;
+    if (p.sp.y > 3.4) p.sp.y = 0.4;
+  }
+  /* beacon over nearest unlit lantern */
+  {
+    let best = null, bd = 1e9;
+    for (const L of lanterns) if (!L.lit) {
+      const d = Math.hypot(cam.x-L.x, cam.z-L.z);
+      if (d < bd) { bd = d; best = L; }
+    }
+    if (best) {
+      beacon.x = best.x; beacon.z = best.z;
+      beacon.size = 0.8 + Math.sin(t*3)*0.2;
+    } else beacon.size = 0.01;
+  }
+
+  /* prompt */
+  promptTarget = null;
+  if (started && !dlgOpen) {
+    let bd = 1e9;
+    for (const it of interactables) {
+      if (it.kind === 'lantern' && it.ref.lit) continue;
+      const d = Math.hypot(cam.x-it.x, cam.z-it.z);
+      if (d < it.r && d < bd) { bd = d; promptTarget = it; }
+    }
+  }
+  // wren prompt text needs bird pos — kind wren handled below
+  if (promptTarget) {
+    const label = promptTarget.kind === 'lantern' ? 'light the lantern'
+      : promptTarget.kind === 'wren' ? 'talk to Wren'
+      : promptTarget.kind === 'bear' ? 'talk to Bramble'
+      : promptTarget.kind === 'moth' ? 'approach the moth'
+      : promptTarget.kind === 'frog' ? 'talk to Moss' : 'approach';
+    document.getElementById('promptText').textContent = label;
+    promptEl.style.display = 'block';
+  } else promptEl.style.display = 'none';
+
+  music(t);
+  G3.render();
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
