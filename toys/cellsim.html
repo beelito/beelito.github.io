@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CellSim — a cell, organelle by organelle</title>
+<style>
+  :root { --bg:#070b16; --panel:#0d1426; --line:#1e2a45; --txt:#dbe4ff; --dim:#8b98bd; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  header h1 { font-size:20px; letter-spacing:1px; }
+  header h1 .sub { color:var(--dim); font-weight:400; font-size:13px; letter-spacing:0; }
+  #aliveBadge { font-size:12px; padding:4px 12px; border-radius:20px; background:#14532d; color:#bbf7d0; }
+  #aliveBadge.dead { background:#7f1d1d; color:#fecaca; }
+  #clock { margin-left:auto; color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; }
+  main { display:grid; grid-template-columns:1fr 300px; gap:12px; padding:12px 20px; max-width:1400px; margin:0 auto; }
+  @media (max-width:900px){ main{ grid-template-columns:1fr; } }
+  #stageWrap { position:relative; background:radial-gradient(ellipse at 50% 45%, #0b1226 0%, #070b16 70%); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  #stage { display:block; width:100%; height:520px; cursor:crosshair; }
+  #tooltip { position:absolute; pointer-events:none; background:#111a30ee; border:1px solid #2c3c66; border-radius:8px; padding:8px 10px; font-size:12px; max-width:230px; display:none; z-index:5; }
+  #tooltip b { color:#facc15; }
+  #tooltip .live { color:#7dd3fc; margin-top:4px; display:block; }
+  #deathOverlay { position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:#2a0a0acc; z-index:4; text-align:center; padding:20px; }
+  #deathOverlay h2 { font-size:28px; }
+  aside { display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .card h3 { font-size:11px; text-transform:uppercase; letter-spacing:1.5px; color:var(--dim); margin-bottom:8px; }
+  .meter { margin-bottom:7px; }
+  .meter .row { display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px; }
+  .meter .row .v { font-variant-numeric:tabular-nums; color:var(--dim); }
+  .bar { height:8px; background:#1a2340; border-radius:4px; overflow:hidden; }
+  .bar > div { height:100%; border-radius:4px; transition:width .2s; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:11px; background:#16203a; border:1px solid var(--line); padding:3px 9px; border-radius:12px; }
+  .chip b { color:#facc15; }
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  button { background:#1c2a52; color:var(--txt); border:1px solid #2c3c66; border-radius:8px; padding:8px 6px; font-size:12px; cursor:pointer; transition:background .15s; }
+  button:hover { background:#27376b; }
+  button.warn { background:#4a1d1d; border-color:#7f2d2d; }
+  button.warn:hover { background:#5f2424; }
+  button:disabled { opacity:.4; cursor:default; }
+  #log { font-family:ui-monospace,monospace; font-size:11px; line-height:1.5; height:132px; overflow:hidden; color:#a9b8dd; }
+  #log div:last-child { color:#facc15; }
+  .legend { display:flex; flex-wrap:wrap; gap:8px; font-size:11px; color:var(--dim); }
+  .legend span::before { content:''; display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; background:var(--c); }
+  footer { max-width:1400px; margin:0 auto; padding:4px 20px 24px; color:var(--dim); font-size:12px; }
+  footer .done { color:#4ade80; } footer .todo { color:#5b6a94; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔬 CELLSIM <span class="sub">— a cell, modeled organelle by organelle</span></h1>
+  <span id="aliveBadge">● ALIVE</span>
+  <span id="clock">t = 0s</span>
+</header>
+<main>
+  <div>
+    <div id="stageWrap">
+      <canvas id="stage"></canvas>
+      <div id="tooltip"></div>
+      <div id="deathOverlay">
+        <h2>☠ Cell died</h2>
+        <p id="deathCause"></p>
+        <button id="resetBtn2" style="padding:10px 26px;font-size:14px;">Grow a new cell</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:12px;">
+      <h3>Molecule legend</h3>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+  <aside>
+    <div class="card">
+      <h3>Resources</h3>
+      <div id="meters"></div>
+    </div>
+    <div class="card">
+      <h3>Proteins &amp; transcripts</h3>
+      <div class="chips" id="proteinChips"></div>
+    </div>
+    <div class="card">
+      <h3>Controls</h3>
+      <div class="btns">
+        <button id="feedBtn">🍬 Feed glucose</button>
+        <button id="toxinBtn" class="warn">☠ Toxin shock</button>
+        <button id="expEnz">Express enzyme</button>
+        <button id="expCh">Express channel</button>
+        <button id="expSt">Express structural</button>
+        <button id="pauseBtn">⏸ Pause</button>
+        <button id="speedBtn">Speed: 1×</button>
+        <button id="resetBtn">↺ Reset cell</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Cell log</h3>
+      <div id="log"></div>
+    </div>
+  </aside>
+</main>
+<footer>
+  <span class="done">✓ modeled:</span> membrane · mitochondria ×4 · nucleus · ribosomes ×6 · endoplasmic reticulum · Golgi apparatus · lysosomes ×2
+  &nbsp;·&nbsp; <span class="todo">○ not yet: vacuole · cytoskeleton · peroxisome · chloroplast (plant mode?)</span>
+</footer>
+<script>
+'use strict';
+/* ============================================================
+   CELLSIM engine — a cell modeled organelle by organelle.
+   Framework-free. Runs in the browser or under node.
+   Tick-based resource simulation: every organelle consumes and
+   produces molecules through a shared cytoplasmic pool.
+   ============================================================ */
+
+const GENES = ['enzyme', 'channel', 'structural'];
+
+const GENE_INFO = {
+  enzyme:     { name: 'Metabolic enzyme',  desc: 'Boosts mitochondrial ATP yield' },
+  channel:    { name: 'Membrane channel',  desc: 'Speeds up glucose import' },
+  structural: { name: 'Structural protein', desc: 'Faster healing, resists damage' },
+};
+
+// Particle / event molecule kinds (renderer maps these to colors)
+const MOLS = ['glucose', 'o2', 'atp', 'amino', 'mrna', 'protein', 'waste', 'vesicle', 'lipid'];
+
+class Cell {
+  constructor() {
+    this.reset();
+  }
+
+  reset() {
+    this.t = 0;
+    this.alive = true;
+    this.deathCause = null;
+
+    // Cytoplasmic resource pools
+    this.atp = 60;      this.atpCap = 200;
+    this.glucose = 80;  this.glucoseCap = 200;
+    this.o2 = 100;      this.o2Cap = 100;
+    this.amino = 50;    this.aminoCap = 150;
+    this.lipids = 40;   this.lipidsCap = 120;
+    this.waste = 0;     this.wasteCap = 100;
+    this.health = 100;
+
+    // Protein pipeline
+    this.unfolded = { enzyme: 0, channel: 0, structural: 0 }; // fresh off ribosomes
+    this.folded   = { enzyme: 2, channel: 1, structural: 2 }; // functional pool
+    this.damaged  = 0;                                       // awaiting lysosome
+    this.mrna     = { enzyme: 0, channel: 0, structural: 0 }; // transcripts
+    this.mrnaFuel = { enzyme: 0, channel: 0, structural: 0 }; // translations left
+
+    // Organelle state
+    this.mito = [0, 1, 2, 3].map(() => ({ burn: 0 }));  // 4 mitochondria
+    this.ribos = Array.from({ length: 6 }, () => ({ busy: 0, gene: null })); // 6 ribosomes
+    this.lysos = [{ work: 0 }, { work: 0 }];              // 2 lysosomes
+    this.txQueue = [];                                   // nucleus transcription jobs
+    this.txCooldown = { enzyme: 0, channel: 0, structural: 0 };
+
+    // Per-organelle activity 0..1 (drives renderer glow)
+    this.activity = {
+      membrane: 0, mito: 0, nucleus: 0, ribo: 0,
+      er: 0, golgi: 0, lyso: 0,
+    };
+
+    this._events = [];
+    this._log('Cell initialized. Keep ATP above zero — feed it glucose.');
+  }
+
+  /* ---------------- user / environment actions ---------------- */
+
+  feed() {
+    if (!this.alive) return false;
+    this.glucose = Math.min(this.glucoseCap, this.glucose + 50);
+    this._xfer('glucose', 'outside', 'membrane', 6);
+    this._log('Glucose absorbed through the membrane.');
+    return true;
+  }
+
+  express(gene, auto = false) {
+    if (!this.alive || !GENES.includes(gene)) return false;
+    if (this.atp < 6) { if (!auto) this._log('Not enough ATP to transcribe.'); return false; }
+    this.atp -= 6;
+    this.txQueue.push({ gene, tLeft: 3, yield: 4 });
+    this._xfer('atp', 'cyto', 'nucleus', 3);
+    if (!auto) this._log(`Nucleus transcribing ${GENE_INFO[gene].name}…`);
+    return true;
+  }
+
+  toxin() {
+    if (!this.alive) return false;
+    this.waste = Math.min(this.wasteCap, this.waste + 25);
+    // damage up to 6 folded proteins, spread across types
+    let n = 6;
+    for (const g of GENES) {
+      const d = Math.min(this.folded[g], Math.ceil(n / 3));
+      this.folded[g] -= d; this.damaged += d; n -= d;
+    }
+    this._xfer('waste', 'outside', 'cyto', 6);
+    this._log('⚠ Toxin exposure! Waste spike, proteins damaged.');
+    return true;
+  }
+
+  /* ---------------- main tick ---------------- */
+
+  tick(dt) {
+    if (!this.alive) return;
+    this.t += dt;
+    const A = this.activity;
+    for (const k in A) A[k] = Math.max(0, A[k] - dt * 1.5); // glow decay
+
+    this._membrane(dt);
+    this._mitochondria(dt);
+    this._nucleus(dt);
+    this._ribosomes(dt);
+    this._er(dt);
+    this._golgi(dt);
+    this._lysosomes(dt);
+    this._turnover(dt);
+    this._health(dt);
+
+    // clamp pools
+    this.atp = Math.min(this.atpCap, Math.max(0, this.atp));
+    this.glucose = Math.min(this.glucoseCap, Math.max(0, this.glucose));
+    this.o2 = Math.min(this.o2Cap, Math.max(0, this.o2));
+    this.amino = Math.min(this.aminoCap, Math.max(0, this.amino));
+    this.lipids = Math.min(this.lipidsCap, Math.max(0, this.lipids));
+    this.waste = Math.min(this.wasteCap, Math.max(0, this.waste));
+    this.health = Math.min(100, Math.max(0, this.health));
+  }
+
+  /* ---------------- organelles ---------------- */
+
+  // Selective barrier: imports glucose (active, costs ATP), diffuses O2 in,
+  // exports waste (active, costs ATP).
+  _membrane(dt) {
+    const A = this.activity;
+    // O2 diffusion toward outside concentration
+    const o2in = (95 - this.o2) * 0.25 * dt;
+    if (o2in > 0) { this.o2 += o2in; this._xfer('o2', 'outside', 'membrane', 1); A.membrane = Math.max(A.membrane, 0.3); }
+    // Active glucose import, boosted by channel proteins with diminishing
+    // returns — even infinite channels can't fully sustain the cell alone.
+    // Deliberately a trickle: feeding is the main glucose source.
+    const importRate = 0.05 + 0.2 * (1 - Math.exp(-0.5 * this.folded.channel));
+    const cost = 0.3 * importRate * dt;
+    if (this.atp > cost + 1) {
+      this.glucose += importRate * dt;
+      this.atp -= cost;
+      this._xfer('glucose', 'outside', 'membrane', 2);
+      A.membrane = Math.max(A.membrane, 0.6);
+    }
+    // Amino acid import (trickle) — recycling covers the rest
+    if (this.atp > 1) {
+      this.amino += 0.4 * dt;
+      this.atp -= 0.1 * dt;
+    }
+    // Waste export
+    const exp = Math.min(this.waste, 2.5 * dt);
+    if (exp > 0 && this.atp > 1) {
+      this.waste -= exp; this.atp -= 0.25 * exp;
+      this._xfer('waste', 'cyto', 'outside', 1);
+      A.membrane = Math.max(A.membrane, 0.5);
+    }
+  }
+
+  // Cellular respiration: glucose + O2 -> ATP (~20 ATP per glucose, simplified)
+  _mitochondria(dt) {
+    const eff = Math.min(1.6, 1 + 0.06 * this.folded.enzyme); // enzyme boost
+    // Compute the shared fuel pool ONCE, then divide it — each mito must
+    // not re-take a "share" of the full pool or they drain it every tick.
+    const totalWant = 0.4 * dt * this.mito.length; // 1.6 glucose/s max
+    const pool = Math.max(0, Math.min(this.glucose, this.o2 / 6, totalWant));
+    const per = pool / this.mito.length;
+    let totalBurn = 0;
+    for (let i = 0; i < this.mito.length; i++) {
+      const m = this.mito[i];
+      const burn = Math.max(0, Math.min(per, this.glucose, this.o2 / 6));
+      m.burn = burn / dt; // per-second rate, for glow
+      if (burn > 0) {
+        this.glucose -= burn;
+        this.o2 -= burn * 6;
+        this.atp += burn * 20 * eff;
+        this.waste += burn * 0.15; // CO2 / metabolic byproducts
+        totalBurn += burn;
+        this.activity.mito = Math.max(this.activity.mito, Math.min(1, 0.4 + (burn / dt) * 2));
+      }
+    }
+    if (totalBurn > 0.0005) {
+      this._xfer('glucose', 'cyto', 'mito', 3);
+      this._xfer('atp', 'mito', 'cyto', 4);
+    }
+  }
+
+  // Transcription: DNA -> mRNA. Auto-expresses whatever protein runs low.
+  _nucleus(dt) {
+    for (const g of GENES) this.txCooldown[g] = Math.max(0, this.txCooldown[g] - dt);
+    // advance queued transcripts
+    for (let i = this.txQueue.length - 1; i >= 0; i--) {
+      const job = this.txQueue[i];
+      job.tLeft -= dt;
+      this.activity.nucleus = Math.max(this.activity.nucleus, 0.7);
+      if (job.tLeft <= 0) {
+        this.mrna[job.gene] += job.yield;
+        this.mrnaFuel[job.gene] += job.yield * 4;
+        this._xfer('mrna', 'nucleus', 'cyto', 3);
+        this._log(`mRNA for ${GENE_INFO[job.gene].name} exported.`);
+        this.txQueue.splice(i, 1);
+      }
+    }
+    // homeostatic auto-expression
+    if (this.atp > 25) {
+      for (const g of GENES) {
+        if (this.folded[g] < 1.5 && this.txCooldown[g] <= 0 && this.txQueue.length < 3) {
+          if (this.express(g, true)) { this.txCooldown[g] = 12; break; }
+        }
+      }
+    }
+    // mRNA degrades over time
+    for (const g of GENES) {
+      const decay = Math.min(this.mrnaFuel[g], 0.15 * dt * Math.max(1, this.mrna[g]));
+      this.mrnaFuel[g] -= decay;
+      if (this.mrnaFuel[g] <= 0) { this.mrna[g] = 0; this.mrnaFuel[g] = 0; }
+    }
+  }
+
+  // Translation: mRNA + amino acids + ATP -> unfolded protein
+  _ribosomes(dt) {
+    let busyCount = 0;
+    for (const r of this.ribos) {
+      if (r.busy > 0) {
+        r.busy -= dt;
+        busyCount++;
+        if (r.busy <= 0) {
+          this.unfolded[r.gene] += 1;
+          this._xfer('protein', 'ribo', 'er', 1);
+          r.gene = null;
+        }
+        continue;
+      }
+      // pick a gene with translatable mRNA
+      const g = GENES.find(x => this.mrnaFuel[x] > 0);
+      if (g && this.amino >= 2 && this.atp >= 3) {
+        this.amino -= 2; this.atp -= 3;
+        this.mrnaFuel[g] -= 1;
+        if (this.mrnaFuel[g] <= 0) { this.mrna[g] = 0; this.mrnaFuel[g] = 0; }
+        r.busy = 2.0; r.gene = g;
+        this._xfer('amino', 'cyto', 'ribo', 2);
+        this._xfer('atp', 'cyto', 'ribo', 1);
+        busyCount++;
+      }
+    }
+    if (busyCount > 0) this.activity.ribo = Math.max(this.activity.ribo, 0.8);
+  }
+
+  // Rough ER folds proteins (some misfold); smooth ER makes lipids.
+  _er(dt) {
+    // folding
+    let folding = 0;
+    const budget = 2.0 * dt;
+    let remaining = budget;
+    for (const g of GENES) {
+      if (remaining <= 0) break;
+      const n = Math.min(this.unfolded[g], remaining);
+      if (n > 0 && this.atp >= n) {
+        this.unfolded[g] -= n; this.atp -= n; remaining -= n; folding += n;
+        // 12% misfold -> flagged for lysosome
+        const mis = n * 0.12;
+        this.damaged += mis;
+        this.folded[g] += (n - mis);
+        if (n > 0.05) this._xfer('protein', 'er', 'golgi', 2);
+      }
+    }
+    if (folding > 0.01) this.activity.er = Math.max(this.activity.er, 0.8);
+    // smooth ER: lipid synthesis
+    if (this.atp > 10) {
+      const made = Math.min(0.4 * dt, this.atp * 0.02);
+      this.lipids += made; this.atp -= made * 1.2;
+      if (made > 0.001) this.activity.er = Math.max(this.activity.er, 0.4);
+    }
+  }
+
+  // Packages folded proteins into vesicles, ships them to the membrane.
+  _golgi(dt) {
+    const total = GENES.reduce((s, g) => s + this.folded[g], 0);
+    if (total > 0.5) {
+      this.activity.golgi = Math.max(this.activity.golgi, 0.6);
+      if (Math.random() < dt * 1.2) this._xfer('vesicle', 'golgi', 'membrane', 1);
+    }
+  }
+
+  // Degrade damaged proteins + waste -> recycled amino acids
+  _lysosomes(dt) {
+    for (const l of this.lysos) {
+      let work = 0;
+      const budget = 1.5 * dt;
+      const d = Math.min(this.damaged, budget);
+      if (d > 0 && this.atp > 0.5) {
+        this.damaged -= d; this.amino += d * 4; this.atp -= d * 0.2; work += d;
+      }
+      const w = Math.min(this.waste, budget - d);
+      if (w > 0 && this.atp > 0.5) {
+        this.waste -= w; this.atp -= w * 0.2; work += w;
+      }
+      l.work = work / dt;
+      if (work > 0.001) {
+        this.activity.lyso = Math.max(this.activity.lyso, 0.8);
+        this._xfer('amino', 'lyso', 'cyto', 2);
+      }
+    }
+  }
+
+  // Protein turnover: functional proteins slowly get damaged with age.
+  _turnover(dt) {
+    const resist = 1 / (1 + 0.15 * this.folded.structural); // structural proteins resist
+    for (const g of GENES) {
+      const d = this.folded[g] * 0.008 * resist * dt;
+      this.folded[g] -= d;
+      this.damaged += d;
+    }
+  }
+
+  // Basal metabolism + health. Death when health hits zero.
+  _health(dt) {
+    const totalProtein = GENES.reduce((s, g) => s + this.folded[g], 0);
+    this.atp -= (7.0 + 0.2 * totalProtein) * dt; // housekeeping: transport, synthesis, repair
+    if (this.atp <= 0.01) {
+      this.health -= 6 * dt;
+      if (!this._starveWarned || this.t - this._starveWarned > 10) {
+        this._log('⚠ ATP depleted! The cell is starving — feed it glucose.');
+        this._starveWarned = this.t;
+      }
+    } else if (this.waste > 70) {
+      this.health -= 3 * dt;
+    } else {
+      this.health += (1.5 + 0.5 * this.folded.structural) * dt;
+    }
+    if (this.health <= 0 && this.alive) {
+      this.alive = false;
+      this.deathCause = this.atp <= 0.01 ? 'ATP starvation' : 'waste toxicity';
+      this._log(`☠ Cell died: ${this.deathCause}. Press reset to grow a new one.`);
+    }
+  }
+
+  /* ---------------- events / snapshots ---------------- */
+
+  _xfer(mol, from, to, n) {
+    if (this._events.length < 60) this._events.push({ k: 'xfer', mol, from, to, n });
+  }
+  _log(msg) {
+    this._events.push({ k: 'log', msg });
+    if (this._events.length > 120) this._events.splice(0, this._events.length - 120);
+  }
+  drainEvents() {
+    const e = this._events;
+    this._events = [];
+    return e;
+  }
+  snapshot() {
+    const r = (x) => Math.round(x * 10) / 10;
+    return {
+      t: r(this.t), alive: this.alive, deathCause: this.deathCause,
+      atp: r(this.atp), glucose: r(this.glucose), o2: r(this.o2),
+      amino: r(this.amino), lipids: r(this.lipids),
+      waste: r(this.waste), health: r(this.health),
+      unfolded: r(GENES.reduce((s, g) => s + this.unfolded[g], 0)),
+      damaged: r(this.damaged),
+      mrna: r(GENES.reduce((s, g) => s + this.mrna[g], 0)),
+      proteins: { enzyme: r(this.folded.enzyme), channel: r(this.folded.channel), structural: r(this.folded.structural) },
+      txQueued: this.txQueue.length,
+      activity: { ...this.activity },
+    };
+  }
+}
+
+if (typeof module !== 'undefined' && module.exports) module.exports = { Cell, GENES, GENE_INFO };
+/* ============================================================
+   CELLSIM UI — canvas renderer + controls. Requires sim.js
+   (Cell, GENES, GENE_INFO) loaded before this script.
+   ============================================================ */
+(function () {
+'use strict';
+
+// ---------- setup ----------
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const tooltip = document.getElementById('tooltip');
+let W = 0, H = 0, DPR = 1;
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const r = canvas.getBoundingClientRect();
+  W = Math.max(300, r.width); H = 520;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  layout();
+}
+window.addEventListener('resize', resize);
+
+// deterministic scatter for ribosomes
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- layout ----------
+const L = {};   // organelle centers
+let riboPts = [];
+const ORGANELLES = [
+  { key: 'membrane', name: 'Cell membrane', desc: 'Selective barrier. Imports glucose + amino acids (costs ATP), lets O₂ diffuse in, pumps waste out.', color: '#60a5fa' },
+  { key: 'mito', name: 'Mitochondrion', desc: 'Cellular respiration: glucose + O₂ → ATP. Boosted by metabolic enzymes.', color: '#fb923c' },
+  { key: 'nucleus', name: 'Nucleus', desc: 'Stores DNA. Transcribes genes → mRNA. Auto-expresses whichever protein runs low.', color: '#c084fc' },
+  { key: 'ribo', name: 'Ribosome', desc: 'Translation: mRNA + amino acids + ATP → unfolded protein.', color: '#f0abfc' },
+  { key: 'er', name: 'Endoplasmic reticulum', desc: 'Rough ER folds proteins (12% misfold → lysosome). Smooth ER synthesizes lipids.', color: '#4ade80' },
+  { key: 'golgi', name: 'Golgi apparatus', desc: 'Packages folded proteins into vesicles and ships them to the membrane.', color: '#f472b6' },
+  { key: 'lyso', name: 'Lysosome', desc: 'Degrades damaged proteins + waste → recycles amino acids.', color: '#facc15' },
+];
+
+function layout() {
+  const m = Math.min(W, H);
+  L.cell = { x: W * 0.5, y: H * 0.54, r: m * 0.40 };
+  L.nucleus = { x: W * 0.40, y: H * 0.50, r: m * 0.105 };
+  L.golgi = { x: W * 0.68, y: H * 0.38, r: m * 0.075 };
+  L.mito = [
+    { x: W * 0.28, y: H * 0.76 }, { x: W * 0.55, y: H * 0.80 },
+    { x: W * 0.75, y: H * 0.62 }, { x: W * 0.63, y: H * 0.24 },
+  ].map(p => ({ ...p, r: m * 0.055 }));
+  L.lyso = [
+    { x: W * 0.27, y: H * 0.30 }, { x: W * 0.46, y: H * 0.24 },
+  ].map(p => ({ ...p, r: m * 0.038 }));
+  // ribosomes scattered in cytoplasm, avoiding the nucleus
+  const rnd = mulberry32(1337);
+  riboPts = [];
+  let guard = 0;
+  while (riboPts.length < 16 && guard++ < 500) {
+    const a = rnd() * Math.PI * 2, d = (0.35 + rnd() * 0.55) * L.cell.r;
+    const x = L.cell.x + Math.cos(a) * d, y = L.cell.y + Math.sin(a) * d * 0.95;
+    const dn = Math.hypot(x - L.nucleus.x, y - L.nucleus.y);
+    if (dn > L.nucleus.r * 1.7) riboPts.push({ x, y });
+  }
+}
+
+// ---------- particles ----------
+const MOL_COLOR = {
+  glucose: '#4ade80', o2: '#7dd3fc', atp: '#facc15', amino: '#f0abfc',
+  mrna: '#fb923c', protein: '#c084fc', waste: '#b45309', vesicle: '#f472b6', lipid: '#fde68a',
+};
+let particles = [];
+function anchor(key) {
+  const C = L.cell, rnd = Math.random;
+  const ring = (rr) => { const a = rnd() * Math.PI * 2; return { x: C.x + Math.cos(a) * rr, y: C.y + Math.sin(a) * rr }; };
+  switch (key) {
+    case 'outside': return ring(C.r * (1.18 + rnd() * 0.25));
+    case 'membrane': return ring(C.r);
+    case 'cyto': { const p = ring(C.r * Math.sqrt(rnd()) * 0.9); return p; }
+    case 'nucleus': return { x: L.nucleus.x, y: L.nucleus.y };
+    case 'er': { const a = rnd() * Math.PI * 2; return { x: L.nucleus.x + Math.cos(a) * L.nucleus.r * 1.6, y: L.nucleus.y + Math.sin(a) * L.nucleus.r * 1.6 }; }
+    case 'golgi': return { x: L.golgi.x, y: L.golgi.y };
+    case 'ribo': return riboPts[(rnd() * riboPts.length) | 0] || { x: C.x, y: C.y };
+    case 'mito': { const mi = L.mito[(rnd() * L.mito.length) | 0]; return { x: mi.x, y: mi.y }; }
+    case 'lyso': { const li = L.lyso[(rnd() * L.lyso.length) | 0]; return { x: li.x, y: li.y }; }
+    default: return { x: C.x, y: C.y };
+  }
+}
+function spawnXfer(mol, from, to, n) {
+  n = Math.min(n || 1, 5);
+  for (let i = 0; i < n; i++) {
+    if (particles.length > 450) return;
+    const a = anchor(from), b = anchor(to);
+    particles.push({
+      x: a.x + (Math.random() - .5) * 14, y: a.y + (Math.random() - .5) * 14,
+      tx: b.x + (Math.random() - .5) * 14, ty: b.y + (Math.random() - .5) * 14,
+      speed: 130 + Math.random() * 60, mol,
+    });
+  }
+}
+function stepParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy);
+    if (d < 6) { particles.splice(i, 1); continue; }
+    const v = Math.min(d, p.speed * dt);
+    p.x += dx / d * v; p.y += dy / d * v;
+  }
+}
+
+// ---------- drawing ----------
+function glow(amount, color) {
+  if (amount > 0.03) { ctx.shadowBlur = 26 * amount; ctx.shadowColor = color; }
+  else ctx.shadowBlur = 0;
+}
+function label(txt, x, y) {
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(200,214,255,0.55)';
+  ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(txt, x, y);
+}
+
+function draw(t) {
+  ctx.clearRect(0, 0, W, H);
+  const C = L.cell, A = cell.activity;
+  const wob = Math.sin(t * 1.3) * 3;
+
+  // cytoplasm
+  ctx.beginPath(); ctx.arc(C.x, C.y, C.r + wob, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(96,140,255,0.07)'; ctx.fill();
+
+  // --- rough ER: wavy arcs hugging the nucleus ---
+  glow(A.er, '#4ade80');
+  ctx.strokeStyle = 'rgba(74,222,128,0.75)'; ctx.lineWidth = 3;
+  for (let k = 0; k < 3; k++) {
+    const rr = L.nucleus.r * (1.45 + k * 0.38);
+    ctx.beginPath();
+    for (let a = 0; a <= Math.PI * 2 + 0.01; a += 0.15) {
+      const w = Math.sin(a * 5 + t * 2 + k) * 4;
+      const x = L.nucleus.x + Math.cos(a) * (rr + w), y = L.nucleus.y + Math.sin(a) * (rr + w);
+      a === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+
+  // --- nucleus ---
+  glow(A.nucleus, '#c084fc');
+  ctx.beginPath(); ctx.arc(L.nucleus.x, L.nucleus.y, L.nucleus.r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(192,132,252,0.14)'; ctx.fill();
+  ctx.lineWidth = 2.5; ctx.strokeStyle = '#a855f7'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(L.nucleus.x, L.nucleus.y, L.nucleus.r * 0.32, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(192,132,252,0.5)'; ctx.fill();
+  ctx.shadowBlur = 0;
+  label('nucleus', L.nucleus.x, L.nucleus.y + L.nucleus.r + 42);
+
+  // --- Golgi: stacked curved cisternae ---
+  glow(A.golgi, '#f472b6');
+  ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    ctx.beginPath();
+    ctx.arc(L.golgi.x, L.golgi.y + 34, L.golgi.r * (0.7 + k * 0.28), Math.PI * 1.15, Math.PI * 1.85);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  label('Golgi', L.golgi.x, L.golgi.y - L.golgi.r - 12);
+
+  // --- mitochondria: beans with cristae squiggle ---
+  L.mito.forEach((mi, i) => {
+    const burn = (cell.mito[i] && cell.mito[i].burn) || 0;
+    glow(Math.min(1, 0.25 + burn * 1.5), '#fb923c');
+    ctx.save(); ctx.translate(mi.x, mi.y); ctx.rotate(i * 0.9 + 0.4);
+    ctx.beginPath(); ctx.ellipse(0, 0, mi.r * 1.5, mi.r * 0.85, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(251,146,60,0.16)'; ctx.fill();
+    ctx.lineWidth = 2.5; ctx.strokeStyle = '#fb923c'; ctx.stroke();
+    ctx.beginPath();
+    for (let x = -mi.r; x <= mi.r; x += 4)
+      x === -mi.r ? ctx.moveTo(x, Math.sin(x * 0.35 + t * 3 + i) * mi.r * 0.3)
+                  : ctx.lineTo(x, Math.sin(x * 0.35 + t * 3 + i) * mi.r * 0.3);
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(251,146,60,0.7)'; ctx.stroke();
+    ctx.restore();
+  });
+  ctx.shadowBlur = 0;
+  label('mitochondria ×4', (L.mito[0].x + L.mito[1].x) / 2, L.mito[1].y + 34);
+
+  // --- lysosomes ---
+  L.lyso.forEach((li) => {
+    glow(A.lyso, '#facc15');
+    ctx.beginPath(); ctx.arc(li.x, li.y, li.r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(250,204,21,0.18)'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#facc15'; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(250,204,21,0.55)';
+    for (let k = 0; k < 4; k++) {
+      const a = t * 0.8 + k * 1.7;
+      ctx.beginPath(); ctx.arc(li.x + Math.cos(a) * li.r * 0.45, li.y + Math.sin(a) * li.r * 0.45, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+  label('lysosomes ×2', (L.lyso[0].x + L.lyso[1].x) / 2, L.lyso[0].y - 16);
+
+  // --- ribosomes ---
+  glow(A.ribo, '#f0abfc');
+  ctx.fillStyle = '#f0abfc';
+  for (const p of riboPts) { ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2); ctx.fill(); }
+  ctx.shadowBlur = 0;
+  label('ribosomes ×6', W * 0.62, H * 0.88);
+
+  // --- membrane: double ring ---
+  glow(A.membrane, '#60a5fa');
+  ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(96,165,250,0.9)';
+  ctx.beginPath(); ctx.arc(C.x, C.y, C.r + wob, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(96,165,250,0.45)';
+  ctx.beginPath(); ctx.arc(C.x, C.y, C.r + wob - 8, 0, Math.PI * 2); ctx.stroke();
+  ctx.shadowBlur = 0;
+  label('cell membrane', C.x, C.y - C.r - 14);
+
+  // --- particles ---
+  for (const p of particles) {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fillStyle = MOL_COLOR[p.mol] || '#fff';
+    ctx.shadowBlur = 8; ctx.shadowColor = ctx.fillStyle;
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+// ---------- HUD ----------
+const METERS = [
+  { k: 'atp', label: 'ATP (energy)', color: '#facc15', cap: 200 },
+  { k: 'glucose', label: 'Glucose', color: '#4ade80', cap: 200 },
+  { k: 'o2', label: 'Oxygen', color: '#7dd3fc', cap: 100 },
+  { k: 'amino', label: 'Amino acids', color: '#f0abfc', cap: 150 },
+  { k: 'lipids', label: 'Lipids', color: '#fde68a', cap: 120 },
+  { k: 'waste', label: 'Waste', color: '#b45309', cap: 100 },
+  { k: 'health', label: 'Cell health', color: '#f87171', cap: 100 },
+];
+const metersEl = document.getElementById('meters');
+metersEl.innerHTML = METERS.map(m =>
+  `<div class="meter"><div class="row"><span>${m.label}</span><span class="v" id="mv-${m.k}"></span></div>
+   <div class="bar"><div id="mb-${m.k}" style="background:${m.color}"></div></div></div>`).join('');
+
+const chipsEl = document.getElementById('proteinChips');
+const logEl = document.getElementById('log');
+const logLines = [];
+function pushLog(msg) {
+  const mm = String(Math.floor(cell.t / 60)).padStart(2, '0'), ss = String(Math.floor(cell.t % 60)).padStart(2, '0');
+  logLines.push(`[${mm}:${ss}] ${msg}`);
+  if (logLines.length > 40) logLines.shift();
+  logEl.innerHTML = logLines.slice(-8).map(l => `<div>${l}</div>`).join('');
+  logEl.scrollTop = logEl.scrollHeight;
+}
+document.getElementById('legend').innerHTML =
+  Object.entries(MOL_COLOR).map(([k, c]) => `<span style="--c:${c}">${k}</span>`).join('');
+
+function updateHUD() {
+  const s = cell.snapshot();
+  for (const m of METERS) {
+    document.getElementById('mb-' + m.k).style.width = Math.min(100, s[m.k] / m.cap * 100) + '%';
+    document.getElementById('mv-' + m.k).textContent = Math.round(s[m.k]);
+  }
+  chipsEl.innerHTML =
+    `<span class="chip">⚙ enzyme <b>${s.proteins.enzyme}</b></span>` +
+    `<span class="chip">🚪 channel <b>${s.proteins.channel}</b></span>` +
+    `<span class="chip">🧱 structural <b>${s.proteins.structural}</b></span>` +
+    `<span class="chip">🧬 mRNA <b>${s.mrna}</b></span>` +
+    `<span class="chip">🌀 unfolded <b>${s.unfolded}</b></span>` +
+    `<span class="chip">💀 damaged <b>${s.damaged}</b></span>`;
+  document.getElementById('clock').textContent = 't = ' + Math.floor(s.t) + 's';
+  const badge = document.getElementById('aliveBadge');
+  if (s.alive) { badge.textContent = '● ALIVE'; badge.classList.remove('dead'); }
+  else {
+    badge.textContent = '☠ DEAD'; badge.classList.add('dead');
+    document.getElementById('deathCause').textContent = 'Cause: ' + (s.deathCause || 'unknown');
+    document.getElementById('deathOverlay').style.display = 'flex';
+  }
+}
+
+// ---------- controls ----------
+let paused = false, speed = 1;
+const speeds = [1, 2, 4];
+let speedIdx = 0;
+const cell = new Cell();
+
+document.getElementById('feedBtn').onclick = () => cell.feed();
+document.getElementById('toxinBtn').onclick = () => cell.toxin();
+document.getElementById('expEnz').onclick = () => cell.express('enzyme');
+document.getElementById('expCh').onclick = () => cell.express('channel');
+document.getElementById('expSt').onclick = () => cell.express('structural');
+const pauseBtn = document.getElementById('pauseBtn');
+function togglePause() { paused = !paused; pauseBtn.textContent = paused ? '▶ Resume' : '⏸ Pause'; }
+pauseBtn.onclick = togglePause;
+document.getElementById('speedBtn').onclick = (e) => {
+  speedIdx = (speedIdx + 1) % speeds.length; speed = speeds[speedIdx];
+  e.target.textContent = 'Speed: ' + speed + '×';
+};
+function resetCell() {
+  cell.reset(); particles = []; logLines.length = 0; logEl.innerHTML = '';
+  document.getElementById('deathOverlay').style.display = 'none';
+  pushLog('New cell grown. Keep ATP above zero — feed it glucose.');
+}
+document.getElementById('resetBtn').onclick = resetCell;
+document.getElementById('resetBtn2').onclick = resetCell;
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); togglePause(); }
+  if (e.key === 'f') cell.feed();
+});
+
+// ---------- tooltip ----------
+function liveStat(key) {
+  const s = cell.snapshot();
+  switch (key) {
+    case 'mito': { const b = cell.mito.reduce((x, m) => x + m.burn, 0); return `burning ${b.toFixed(2)} glucose/s → ATP`; }
+    case 'nucleus': return `${cell.txQueue.length} transcript(s) queued · mRNA: ${s.mrna}`;
+    case 'ribo': { const busy = cell.ribos.filter(r => r.busy > 0).length; return `${busy}/6 ribosomes translating`; }
+    case 'er': return `folding proteins · lipids: ${Math.round(s.lipids)}`;
+    case 'golgi': return 'packaging vesicles → membrane';
+    case 'lyso': { const w = cell.lysos.reduce((x, l) => x + l.work, 0); return `degrading ${w.toFixed(1)} units/s → amino acids`; }
+    case 'membrane': { const im = 0.05 + 0.2 * (1 - Math.exp(-0.5 * s.proteins.channel)); return `importing ${im.toFixed(2)} glucose/s · exporting waste`; }
+    default: return '';
+  }
+}
+function hitTest(mx, my) {
+  const tests = [
+    { key: 'nucleus', x: L.nucleus.x, y: L.nucleus.y, r: L.nucleus.r + 40 },
+    { key: 'golgi', x: L.golgi.x, y: L.golgi.y, r: L.golgi.r + 30 },
+    { key: 'er', x: L.nucleus.x, y: L.nucleus.y, r: L.nucleus.r * 2.6 },
+    { key: 'mito', x: L.mito[0].x, y: L.mito[0].y, r: 60 },
+    { key: 'lyso', x: L.lyso[0].x, y: L.lyso[0].y, r: 44 },
+    { key: 'membrane', x: L.cell.x, y: L.cell.y, r: L.cell.r },
+  ];
+  // check small organelles first, membrane last (it's the big ring)
+  const order = ['nucleus', 'golgi', 'mito', 'lyso', 'er', 'membrane'];
+  for (const key of order) {
+    const t = tests.find(x => x.key === key);
+    if (key === 'mito') {
+      for (const mi of L.mito) if (Math.hypot(mx - mi.x, my - mi.y) < 52) return 'mito';
+      continue;
+    }
+    if (key === 'lyso') {
+      for (const li of L.lyso) if (Math.hypot(mx - li.x, my - li.y) < 40) return 'lyso';
+      continue;
+    }
+    if (key === 'membrane') {
+      const d = Math.hypot(mx - L.cell.x, my - L.cell.y);
+      if (Math.abs(d - L.cell.r) < 22) return 'membrane';
+      continue;
+    }
+    if (Math.hypot(mx - t.x, my - t.y) < t.r) return key;
+  }
+  // ribosome dots
+  for (const p of riboPts) if (Math.hypot(mx - p.x, my - p.y) < 10) return 'ribo';
+  return null;
+}
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  const key = hitTest(mx, my);
+  if (!key) { tooltip.style.display = 'none'; return; }
+  const info = ORGANELLES.find(o => o.key === key);
+  tooltip.innerHTML = `<b>${info.name}</b><br>${info.desc}<span class="live">⚡ ${liveStat(key)}</span>`;
+  tooltip.style.display = 'block';
+  const wrap = document.getElementById('stageWrap').getBoundingClientRect();
+  let tx = e.clientX - wrap.left + 14, ty = e.clientY - wrap.top + 14;
+  if (tx > wrap.width - 245) tx -= 250;
+  tooltip.style.left = tx + 'px'; tooltip.style.top = ty + 'px';
+});
+canvas.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+
+// ---------- main loop ----------
+const SIM_DT = 0.1;
+let acc = 0, last = performance.now(), hudTimer = 0;
+pushLog('Cell initialized. Keep ATP above zero — feed it glucose.');
+
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (!paused && cell.alive) {
+    acc += dt * speed;
+    let n = 0;
+    while (acc >= SIM_DT && n++ < 40) { cell.tick(SIM_DT); acc -= SIM_DT; }
+  } else acc = 0;
+
+  for (const e of cell.drainEvents()) {
+    if (e.k === 'xfer') spawnXfer(e.mol, e.from, e.to, e.n);
+    else if (e.k === 'log') pushLog(e.msg);
+  }
+  stepParticles(dt);
+  draw(now / 1000);
+
+  hudTimer += dt;
+  if (hudTimer > 0.2) { hudTimer = 0; updateHUD(); }
+  requestAnimationFrame(frame);
+}
+
+resize();
+updateHUD();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
