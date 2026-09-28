@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>beelito — i build playful things</title>
 <meta name="description" content="beelito's portfolio: micro-SaaS, a Flutter embroidery app, CPU architecture experiments, stickers, and games. Built for fun, shipped for real.">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="ghost.png" type="image/png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
@@ -13,12 +13,15 @@
 </head>
 <body>
 
-<header class="nav">
+<div class="aurora" aria-hidden="true">
+  <span class="blob b1"></span><span class="blob b2"></span>
+  <span class="blob b3"></span><span class="blob b4"></span>
+</div>
+
+<header class="nav glass">
   <a class="nav-logo" href="#top" aria-label="beelito home">
-    <span class="nav-ghost" aria-hidden="true">
-      <svg viewBox="0 0 200 200"><use href="#ghost-body"/></svg>
-    </span>
-    beelito
+    <img class="nav-ghost" src="ghost.png" alt="">
+    <span>beelito</span>
   </a>
   <nav class="nav-links">
     <a href="#work">work</a>
@@ -31,168 +34,163 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="floaties" aria-hidden="true">
-      <span class="floaty f1">✦</span><span class="floaty f2">●</span><span class="floaty f3">✦</span>
-      <span class="floaty f4">●</span><span class="floaty f5">✦</span><span class="floaty f6">●</span>
-    </div>
     <div class="wrap hero-inner">
-      <div class="hero-ghost" id="heroGhost" aria-hidden="true">
-        <svg viewBox="0 0 200 200">
-          <defs>
-            <g id="ghost-body">
-              <circle cx="16" cy="72" r="8" fill="#232323"/>
-              <ellipse cx="34" cy="122" rx="11" ry="15" fill="#fff" stroke="#232323" stroke-width="8"/>
-              <path d="M100 22 C55 22 34 64 34 104 C34 144 62 172 100 172 C138 172 166 144 166 104 C166 64 145 22 100 22 Z"
-                    fill="#fff" stroke="#232323" stroke-width="8" stroke-linejoin="round"/>
-              <g class="pupil"><circle cx="78" cy="92" r="8" fill="#232323"/></g>
-              <path class="u-eye" d="M110 82 q 9 16 18 0" fill="none" stroke="#232323" stroke-width="8" stroke-linecap="round"/>
-              <path d="M70 128 q 30 20 60 0" fill="none" stroke="#232323" stroke-width="8" stroke-linecap="round"/>
-            </g>
-          </defs>
-          <use href="#ghost-body"/>
-        </svg>
+      <div class="hero-stage">
+        <div class="hero-orb" id="heroOrb" role="img" aria-label="beelito's ghost logo">
+          <img src="ghost.png" alt="">
+        </div>
+        <div class="hero-shadow" aria-hidden="true"></div>
+        <span class="chip c1">flutter</span>
+        <span class="chip c2">CPUs</span>
+        <span class="chip c3">stickers</span>
+        <span class="chip c4">日本語</span>
       </div>
       <p class="hero-kicker">hello hello! i'm</p>
       <h1>beelito</h1>
-      <p class="hero-sub">i build <span class="hl hl-pink">playful things</span> — tiny software businesses, embroidery apps, CPUs made of neural nets, stickers, and games. if it's fun to make, i've probably tried it.</p>
+      <p class="hero-sub">i build <span class="hl">playful things</span> — tiny software businesses, embroidery apps, CPUs made of neural nets, stickers, and games. if it's fun to make, i've probably tried it.</p>
       <div class="hero-btns">
-        <a class="btn btn-primary" href="#work">see the stuff ↓</a>
-        <a class="btn btn-ghost" href="#contact">say hi</a>
+        <a class="btn btn-gel" href="#work">see the stuff ↓</a>
+        <a class="btn btn-clear" href="#contact">say hi</a>
       </div>
-      <p class="hero-note">psst — my ghost's eye follows your cursor. try it.</p>
+      <p class="hero-note">psst — click the ghost. go on, click him.</p>
     </div>
-    <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,50 C240,90 480,10 720,40 C960,70 1200,20 1440,55 L1440,90 L0,90 Z" fill="#fffdf7"/>
-    </svg>
   </section>
 
   <!-- MARQUEE -->
-  <div class="marquee" aria-hidden="true">
-    <div class="marquee-track">
-      <span>flutter ✦ python ✦ javascript ✦ c ✦ blender ✦ wordpress ✦ japanese ✦ embroidery ✦ stickers ✦ game dev ✦&nbsp;</span>
-      <span>flutter ✦ python ✦ javascript ✦ c ✦ blender ✦ wordpress ✦ japanese ✦ embroidery ✦ stickers ✦ game dev ✦&nbsp;</span>
+  <div class="marquee-wrap">
+    <div class="marquee glass" aria-hidden="true">
+      <div class="marquee-track">
+        <span>flutter · python · javascript · c · blender · wordpress · japanese · embroidery · stickers · game dev ·&nbsp;</span>
+        <span>flutter · python · javascript · c · blender · wordpress · japanese · embroidery · stickers · game dev ·&nbsp;</span>
+      </div>
     </div>
   </div>
 
   <!-- WORK -->
-  <section id="work" class="section cream">
+  <section id="work" class="section">
     <div class="wrap">
       <p class="kicker">selected work</p>
       <h2>things i've made</h2>
       <p class="section-sub">a mix of businesses, experiments, and art. everything below is real and mine.</p>
 
       <div class="cards">
-        <article class="card tilt-l">
-          <span class="card-tag tag-live">live business</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#7fe0b2"></span>
+          <span class="card-tag tint-mint">live business</span>
           <h3>Guardian</h3>
           <p>Website care plans for law firms — updates, backups, uptime monitoring, security. Real customers, real MRR. I built the whole thing: site, audit scanner, outreach machine.</p>
           <div class="card-tags"><span>micro-saas</span><span>wordpress</span><span>security</span></div>
           <a class="card-link" href="https://guardian-care.pages.dev/" target="_blank" rel="noopener">visit the site →</a>
         </article>
 
-        <article class="card tilt-r">
-          <span class="card-tag tag-build">in progress</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#ffd166"></span>
+          <span class="card-tag tint-yellow">in progress</span>
           <h3>Embroidream</h3>
           <p>A Flutter embroidery digitizing app — procreate-style drawing, bezier pen, stitch engine (running, satin, tatami), PES + DST export. Pro software costs hundreds; this is for everyone else.</p>
           <div class="card-tags"><span>flutter</span><span>dart</span><span>creative tools</span></div>
         </article>
 
-        <article class="card tilt-l">
-          <span class="card-tag tag-nerd">deep nerd stuff</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#b9a7ff"></span>
+          <span class="card-tag tint-lav">deep nerd stuff</span>
           <h3>Aurora Core v3</h3>
           <p>An original CPU architecture, designed from scratch — 6-wide out-of-order with mode-free SWAR. Full whitepaper, simulated RTL. The "one guy vs a whole chip team" project.</p>
           <div class="card-tags"><span>computer architecture</span><span>whitepaper</span></div>
         </article>
 
-        <article class="card tilt-r">
-          <span class="card-tag tag-nerd">deep nerd stuff</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#b9a7ff"></span>
+          <span class="card-tag tint-lav">deep nerd stuff</span>
           <h3>Neural CPUs</h3>
           <p>Trained neural networks as logic gates, then composed them gate-by-gate into working CPUs — an 8-bit binary one and a ternary one. Verified bit-exact over tens of thousands of cases. Yes, really.</p>
           <div class="card-tags"><span>machine learning</span><span>python</span><span>c</span></div>
         </article>
 
-        <article class="card tilt-l">
-          <span class="card-tag tag-live">shop</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#ff8fab"></span>
+          <span class="card-tag tint-pink">shop</span>
           <h3>Beelito <span class="card-soft">— the sticker shop</span></h3>
           <p>My Etsy shop for stickers and pins, produced at home with a Cricut and an embroidery machine. 70+ sales and counting. Currently cooking up a relaunch with all-original designs.</p>
           <div class="card-tags"><span>etsy</span><span>illustration</span><span>small business</span></div>
           <a class="card-link" href="https://www.etsy.com/shop/beelito" target="_blank" rel="noopener">visit the shop →</a>
         </article>
 
-        <article class="card tilt-r">
-          <span class="card-tag tag-fun">for fun</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#8ed4f2"></span>
+          <span class="card-tag tint-sky">for fun</span>
           <h3>Games &amp; toys</h3>
           <p>BITROT (a chip-world RPG), a cell biology sim, a cozy 3D fox game, a magical tavern shopkeeper game — small games built in weekends, mostly to make my friends laugh.</p>
           <div class="card-tags"><span>javascript</span><span>game dev</span></div>
         </article>
 
-        <article class="card tilt-l">
-          <span class="card-tag tag-fun">for fun</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#8ed4f2"></span>
+          <span class="card-tag tint-sky">for fun</span>
           <h3>Blender dioramas</h3>
           <p>Recreating iconic GBA scenes as 2.5D dioramas, now animating them into short videos. Nostalgia, but make it 3D.</p>
           <div class="card-tags"><span>blender</span><span>3d art</span><span>tiktok</span></div>
           <a class="card-link" href="https://www.tiktok.com/@beelito" target="_blank" rel="noopener">watch on tiktok →</a>
         </article>
 
-        <article class="card tilt-r">
-          <span class="card-tag tag-live">client work</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#7fe0b2"></span>
+          <span class="card-tag tint-mint">client work</span>
           <h3>Chooza Clean</h3>
           <p>Designed, built, and maintain the website for a family cleaning business. Real client, real site, real mops.</p>
           <div class="card-tags"><span>web design</span><span>freelance</span></div>
         </article>
 
-        <article class="card tilt-l">
-          <span class="card-tag tag-nerd">security</span>
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#ffd166"></span>
+          <span class="card-tag tint-yellow">security</span>
           <h3>Bug bounties</h3>
           <p>Hunting vulnerabilities on HackerOne. Breaking things (legally) to learn how they're built.</p>
           <div class="card-tags"><span>appsec</span><span>hackerone</span></div>
         </article>
       </div>
     </div>
-    <svg class="wave wave-blue" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,50 C240,90 480,10 720,40 C960,70 1200,20 1440,55 L1440,90 L0,90 Z" fill="#aee3f5"/>
-    </svg>
   </section>
 
   <!-- ABOUT -->
-  <section id="about" class="section blue">
-    <div class="wrap about-inner">
-      <div class="about-ghost" aria-hidden="true">
-        <svg viewBox="0 0 200 200"><use href="#ghost-body"/></svg>
-      </div>
-      <div>
-        <p class="kicker">about me</p>
-        <h2>a professional dabbler</h2>
-        <p>I'm beelito, 26, based in Charlotte, NC. I double-majored in Computer Science and Japanese at the same time (the kanji nearly ended me). These days I build small software businesses and weird creative tools from my desk.</p>
-        <p>My range is… wide. I've been a sandwich artist, a barista, and a Japanese teacher. Now I run a micro-SaaS, design CPUs for fun, and make stickers. The throughline is just: <strong>I like making things, and I can't leave a curious idea alone.</strong></p>
-        <ul class="fun-facts">
-          <li><strong>currently:</strong> growing Guardian + building Embroidream</li>
-          <li><strong>languages:</strong> English, Japanese, and fluent CSS</li>
-          <li><strong>party trick:</strong> explaining how a CPU works using only stickers</li>
-          <li><strong>status:</strong> always building something</li>
-        </ul>
+  <section id="about" class="section">
+    <div class="wrap">
+      <div class="about-panel glass reveal">
+        <div class="about-ghost">
+          <img src="ghost.png" alt="beelito's ghost logo">
+        </div>
+        <div>
+          <p class="kicker">about me</p>
+          <h2>a professional dabbler</h2>
+          <p>I'm beelito, 26, based in Charlotte, NC. I double-majored in Computer Science and Japanese at the same time (the kanji nearly ended me). These days I build small software businesses and weird creative tools from my desk.</p>
+          <p>My range is… wide. I've been a sandwich artist, a barista, and a Japanese teacher. Now I run a micro-SaaS, design CPUs for fun, and make stickers. The throughline is just: <strong>I like making things, and I can't leave a curious idea alone.</strong></p>
+          <ul class="fun-facts">
+            <li><strong>currently:</strong> growing Guardian + building Embroidream</li>
+            <li><strong>languages:</strong> English, Japanese, and fluent CSS</li>
+            <li><strong>party trick:</strong> explaining how a CPU works using only stickers</li>
+            <li><strong>status:</strong> always building something</li>
+          </ul>
+        </div>
       </div>
     </div>
-    <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,50 C240,90 480,10 720,40 C960,70 1200,20 1440,55 L1440,90 L0,90 Z" fill="#232323"/>
-    </svg>
   </section>
 
   <!-- CONTACT -->
-  <section id="contact" class="section dark">
-    <div class="wrap contact-inner">
-      <div class="contact-ghost" aria-hidden="true">
-        <svg viewBox="0 0 200 200"><use href="#ghost-body"/></svg>
+  <section id="contact" class="section">
+    <div class="wrap">
+      <div class="contact-panel reveal">
+        <div class="contact-ghost">
+          <img src="ghost.png" alt="beelito's ghost logo">
+        </div>
+        <p class="kicker kicker-light">contact</p>
+        <h2>come say hi!</h2>
+        <p class="section-sub">got a project, a question, or just wanna talk about CPUs and stickers? my inbox is friendly.</p>
+        <div class="contact-btns">
+          <a class="btn btn-gel" href="https://github.com/beelito" target="_blank" rel="noopener">github</a>
+          <a class="btn btn-frost" href="https://www.tiktok.com/@beelito" target="_blank" rel="noopener">tiktok</a>
+          <a class="btn btn-frost" href="https://www.etsy.com/shop/beelito" target="_blank" rel="noopener">etsy shop</a>
+        </div>
       </div>
-      <p class="kicker kicker-light">contact</p>
-      <h2>come say hi!</h2>
-      <p class="section-sub">got a project, a question, or just wanna talk about CPUs and stickers? my inbox is friendly.</p>
-      <div class="contact-btns">
-        <a class="btn btn-primary" href="https://github.com/YOURUSERNAME" target="_blank" rel="noopener">github</a>
-        <a class="btn btn-ghost-light" href="https://www.tiktok.com/@beelito" target="_blank" rel="noopener">tiktok</a>
-        <a class="btn btn-ghost-light" href="https://www.etsy.com/shop/beelito" target="_blank" rel="noopener">etsy shop</a>
-      </div>
-      <p class="contact-note">psst — replace <code>YOURUSERNAME</code> with your actual GitHub username. future you says thanks.</p>
     </div>
   </section>
 
