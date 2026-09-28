@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>CHUNK3D — pixelated 3d game engine</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#050508;overflow:hidden;font-family:'Courier New',monospace;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#050508}
+  #screen{image-rendering:pixelated;image-rendering:crisp-edges;background:#000}
+  #scan{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px);}
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:6;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.5) 100%)}
+  #hud{position:fixed;top:10px;left:12px;z-index:10;color:#7df9ff;font-size:13px;text-shadow:2px 2px 0 #000;pointer-events:none;line-height:1.7}
+  #hud b{color:#ffe14d}
+  #help{position:fixed;bottom:10px;left:12px;z-index:10;color:#8a8aa8;font-size:11px;text-shadow:2px 2px 0 #000;pointer-events:none;line-height:1.6}
+  #msg{position:fixed;top:38%;width:100%;text-align:center;z-index:10;color:#ffe14d;font-size:26px;
+    text-shadow:3px 3px 0 #000;display:none;pointer-events:none}
+  #touchUI{position:fixed;bottom:14px;right:14px;z-index:11;display:none;gap:8px}
+  #touchUI button{width:52px;height:52px;font-size:20px;border-radius:10px;border:2px solid #444;background:#222a;color:#fff}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="screen"></canvas></div>
+<div id="scan"></div><div id="vig"></div>
+<div id="hud">🪙 <b id="hScore">0</b>/10 &nbsp;·&nbsp; <span id="hFps">--</span> fps &nbsp;·&nbsp; <span id="hPos"></span></div>
+<div id="help">WASD move · mouse-drag look · SPACE/C fly up/down · F fog · X wireframe · collect 10 coins!</div>
+<div id="msg"></div>
+<div id="touchUI"><button id="tUp">▲</button><button id="tDn">▼</button></div>
+<script>
+'use strict';
+/* =====================================================================
+   CHUNK3D v1 — a tiny pixelated software 3d engine.
+   Renders into a low-res framebuffer (default 320x180), upscaled with
+   pixelated filtering. Features: z-buffer, affine texture mapping
+   (authentic PS1 wobble), flat shading, Bayer dithering, distance fog,
+   near-plane clipping, billboard sprites, procedural textures.
+   ===================================================================== */
+const Pixel3D = (() => {
+
+  /* ---------- tiny vec/mat helpers (arrays, no GC pressure in loops) ---------- */
+  const sub3 = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const cross3 = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const dot3 = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+  const norm3 = a => { const l = Math.hypot(a[0],a[1],a[2]) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+
+  /* ---------- procedural textures ---------- */
+  function makeTexture(size, painter) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = size;
+    const cx = cv.getContext('2d');
+    painter(cx, size);
+    const img = cx.getImageData(0, 0, size, size);
+    return { w: size, h: size, data: img.data }; // RGBA bytes
+  }
+  const TEX = {
+    crate: () => makeTexture(64, (c,s) => {
+      c.fillStyle = '#8a5a2b'; c.fillRect(0,0,s,s);
+      c.fillStyle = '#75491f';
+      for (let i=0;i<40;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,3,2);
+      c.strokeStyle = '#4a2c10'; c.lineWidth = 6; c.strokeRect(3,3,s-6,s-6);
+      c.beginPath(); c.moveTo(0,0); c.lineTo(s,s); c.moveTo(s,0); c.lineTo(0,s); c.lineWidth=5; c.stroke();
+    }),
+    grass: () => makeTexture(64, (c,s) => {
+      for (let y=0;y<8;y++) for (let x=0;x<8;x++) {
+        c.fillStyle = (x+y)%2 ? '#2f7a2e' : '#359236'; c.fillRect(x*8,y*8,8,8);
+      }
+      c.fillStyle = '#2a6e29';
+      for (let i=0;i<60;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,2,3);
+    }),
+    stone: () => makeTexture(64, (c,s) => {
+      c.fillStyle = '#6b6f7a'; c.fillRect(0,0,s,s);
+      c.fillStyle = '#5b5f6a';
+      for (let i=0;i<26;i++) c.fillRect((Math.random()*s)|0,(Math.random()*s)|0,8,5);
+      c.strokeStyle='#3d4048'; c.lineWidth=2;
+      for (let i=0;i<4;i++){ c.beginPath(); c.moveTo(0,i*16); c.lineTo(s,i*16); c.stroke(); }
+    }),
+    gold: () => makeTexture(32, (c,s) => {
+      const g = c.createRadialGradient(s/2,s/2,2,s/2,s/2,s/2);
+      g.addColorStop(0,'#fff3a0'); g.addColorStop(.6,'#f5c518'); g.addColorStop(1,'#8a6a00');
+      c.fillStyle = g; c.beginPath(); c.arc(s/2,s/2,s/2-1,0,7); c.fill();
+      c.fillStyle = '#8a6a00'; c.font = 'bold 18px monospace'; c.textAlign='center'; c.textBaseline='middle';
+      c.fillText('$', s/2, s/2+1);
+    }),
+  };
+
+  /* ---------- meshes ---------- */
+  // mesh = { verts: [[x,y,z]...], uvs: [[u,v]...], tris: [[a,b,c]...], tex, shade: per-tri brightness override }
+  function cube(tex) {
+    const v = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+    const uv = [[0,0],[1,0],[1,1],[0,1]];
+    const tris = [];
+    const faces = [[0,1,2,3],[5,4,7,6],[4,0,3,7],[1,5,6,2],[3,2,6,7],[4,5,1,0]];
+    const vo = [], uo = [];
+    faces.forEach((f, fi) => {
+      const base = vo.length;
+      f.forEach((vi, k) => { vo.push(v[vi]); uo.push(uv[k]); });
+      tris.push([base, base+1, base+2], [base, base+2, base+3]);
+    });
+    return { verts: vo, uvs: uo, tris, tex };
+  }
+  function plane(tex, rep) {
+    rep = rep || 1;
+    return { verts: [[-1,0,-1],[1,0,-1],[1,0,1],[-1,0,1]],
+             uvs: [[0,0],[rep,0],[rep,rep],[0,rep]],
+             tris: [[0,1,2],[0,2,3]], tex };
+  }
+  function pyramid(color) {
+    return { verts: [[-1,0,-1],[1,0,-1],[1,0,1],[-1,0,1],[0,1.4,0]],
+             uvs: [[0,0],[0,0],[0,0],[0,0],[0,0]],
+             tris: [[0,1,2],[0,2,3],[0,4,1],[1,4,2],[2,4,3],[3,4,0]],
+             tex: null, flatColor: color };
+  }
+
+  /* ---------- the renderer ---------- */
+  function create(canvas, W, H) {
+    W = W || 320; H = H || 180;
+    canvas.width = W; canvas.height = H;
+    // fit canvas to window keeping aspect
+    const fit = () => {
+      const ar = W / H, ww = innerWidth, wh = innerHeight;
+      let cw = ww, ch = ww / ar;
+      if (ch > wh) { ch = wh; cw = wh * ar; }
+      canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+    };
+    addEventListener('resize', fit); fit();
+
+    const ctx = canvas.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    const buf = img.data;                 // RGBA output
+    const zbuf = new Float32Array(W * H);
+    const fb32 = new Uint32Array(buf.buffer); // fast clear via 32-bit writes
+
+    const BAYER = [0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5];
+
+    const R = {
+      W, H,
+      camera: { x:0, y:2, z:8, yaw:0, pitch:0 },
+      light: { dir: norm3([-0.5, -1, -0.35]), ambient: 0.38 },
+      fog: { color: [12,10,26], near: 18, far: 45 },
+      skyTop: [16,12,40], skyBot: [48,30,72],
+      dither: true, wireframe: false,
+      objects: [],   // {mesh, x,y,z, ry, rx, rz, s}
+      sprites: [],   // {x,y,z, size, tex}
+      fov: 75,
+    };
+
+    R.add = (mesh, o) => { const it = Object.assign({x:0,y:0,z:0,ry:0,rx:0,rz:0,s:1}, o||{}); it.mesh = mesh; R.objects.push(it); return it; };
+    R.addSprite = (x,y,z,size,tex) => { const sp = {x,y,z,size,tex}; R.sprites.push(sp); return sp; };
+    R.clearSprites = () => { R.sprites.length = 0; };
+
+    function clear() {
+      zbuf.fill(1e9);
+      // vertical sky gradient
+      for (let y=0;y<H;y++) {
+        const t = y/(H-1);
+        const r = (R.skyTop[0]+(R.skyBot[0]-R.skyTop[0])*t)|0;
+        const g = (R.skyTop[1]+(R.skyBot[1]-R.skyTop[1])*t)|0;
+        const b = (R.skyTop[2]+(R.skyBot[2]-R.skyTop[2])*t)|0;
+        const px = (255<<24)|(b<<16)|(g<<8)|r;
+        const row = y*W;
+        for (let x=0;x<W;x++) fb32[row+x] = px;
+      }
+    }
+
+    /* world -> view space (z positive forward). camera basis:
+       right = (cos yaw, 0, -sin yaw), fwd = (-sin yaw, 0, -cos yaw) */
+    function toView(px,py,pz, cam, out) {
+      const dx = px-cam.x, dy = py-cam.y, dz = pz-cam.z;
+      const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+      const rx = dx*cy - dz*sy;      // along right
+      const fz = -dx*sy - dz*cy;     // along forward
+      const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+      out[0] = rx;
+      out[1] = dy*cp - fz*sp;
+      out[2] = dy*sp + fz*cp;
+      return out;
+    }
+
+    const NEAR = 0.12;
+    /* clip polygon (view space, with uvs) against near plane; returns list of [x,y,z,u,v] */
+    function clipNear(poly) {
+      const out = [];
+      for (let i=0;i<poly.length;i++) {
+        const a = poly[i], b = poly[(i+1)%poly.length];
+        const ain = a[2] > NEAR, bin = b[2] > NEAR;
+        if (ain) out.push(a);
+        if (ain !== bin) {
+          const t = (NEAR - a[2]) / (b[2] - a[2]);
+          out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, NEAR,
+                    a[3]+(b[3]-a[3])*t, a[4]+(b[4]-a[4])*t]);
+        }
+      }
+      return out;
+    }
+
+    const FOV = R.fov * Math.PI/180;
+    const F = 1 / Math.tan(FOV/2);
+
+    function shadeTri(nWorld, baseColor) {
+      // flat shading from face normal
+      const l = R.light;
+      const d = Math.max(0, dot3(nWorld, [-l.dir[0], -l.dir[1], -l.dir[2]]));
+      return Math.min(1, l.ambient + d * (1 - l.ambient));
+    }
+
+    /* rasterize one projected tri. p = [{sx,sy,z,u,v}...], shade 0..1, tex or flatColor */
+    function raster(p, shade, tex, flatColor, dithAmt) {
+      let minx = W-1, maxx = 0, miny = H-1, maxy = 0;
+      for (const q of p) {
+        if (q.sx<minx) minx=q.sx; if (q.sx>maxx) maxx=q.sx;
+        if (q.sy<miny) miny=q.sy; if (q.sy>maxy) maxy=q.sy;
+      }
+      minx = Math.max(0, minx|0); maxx = Math.min(W-1, Math.ceil(maxx));
+      miny = Math.max(0, miny|0); maxy = Math.min(H-1, Math.ceil(maxy));
+      if (maxx<minx || maxy<miny) return;
+      const [a,b,c] = p;
+      const area = (b.sx-a.sx)*(c.sy-a.sy) - (c.sx-a.sx)*(b.sy-a.sy);
+      if (area <= 0.0001) return; // backface / degenerate
+      if (R.wireframe) { drawLine(a,b); drawLine(b,c); drawLine(c,a); return; }
+      const invA = 1/area;
+      const tdata = tex ? tex.data : null, tw = tex ? tex.w : 0, th = tex ? tex.h : 0;
+      const fr = flatColor ? flatColor[0] : 0, fg = flatColor ? flatColor[1] : 0, fb = flatColor ? flatColor[2] : 0;
+      const fog = R.fog;
+      for (let y=miny;y<=maxy;y++) {
+        const row = y*W;
+        for (let x=minx;x<=maxx;x++) {
+          const w0 = ((b.sx-x)*(c.sy-y) - (c.sx-x)*(b.sy-y)) * invA;
+          const w1 = ((c.sx-x)*(a.sy-y) - (a.sx-x)*(c.sy-y)) * invA;
+          const w2 = 1 - w0 - w1;
+          if (w0 < -0.001 || w1 < -0.001 || w2 < -0.001) continue;
+          const z = w0*a.z + w1*b.z + w2*c.z;
+          const zi = row + x;
+          if (z >= zbuf[zi]) continue;
+          zbuf[zi] = z;
+          let r, g, bl;
+          if (tdata) {
+            const u = w0*a.u + w1*b.u + w2*c.u, v = w0*a.v + w1*b.v + w2*c.v;
+            let tx = (u*tw)|0, ty = (v*th)|0;
+            tx = ((tx % tw) + tw) % tw; ty = ((ty % th) + th) % th;
+            const ti = (ty*tw + tx) * 4;
+            r = tdata[ti]; g = tdata[ti+1]; bl = tdata[ti+2];
+          } else { r = fr; g = fg; bl = fb; }
+          // dithered shade
+          let s = shade;
+          if (R.dither) {
+            const th2 = BAYER[((y&3)<<2)|(x&3)] / 16;
+            s = Math.floor(s*8 + th2) / 8;
+          }
+          r = r*s; g = g*s; bl = bl*s;
+          // fog
+          if (fog && z > fog.near) {
+            const t = Math.min(1, (z - fog.near) / (fog.far - fog.near));
+            r += (fog.color[0]-r)*t; g += (fog.color[1]-g)*t; bl += (fog.color[2]-bl)*t;
+          }
+          const o = zi*4;
+          buf[o] = r; buf[o+1] = g; buf[o+2] = bl; buf[o+3] = 255;
+        }
+      }
+    }
+
+    const _v = [0,0,0];
+
+    /* wireframe edge with z-test */
+    function drawLine(a, b) {
+      const x0 = a.sx|0, y0 = a.sy|0, x1 = b.sx|0, y1 = b.sy|0;
+      const n = Math.max(Math.abs(x1-x0), Math.abs(y1-y0)) || 1;
+      for (let i=0;i<=n;i++) {
+        const t = i/n;
+        const x = Math.round(x0+(x1-x0)*t), y = Math.round(y0+(y1-y0)*t);
+        if (x<0||y<0||x>=W||y>=H) continue;
+        const z = a.z+(b.z-a.z)*t, zi = y*W+x;
+        if (z < zbuf[zi]) { zbuf[zi] = z; fb32[zi] = 0xFFFFFFFF; }
+      }
+    }
+    function render() {
+      clear();
+      const cam = R.camera;
+      for (const o of R.objects) {
+        const m = o.mesh;
+        // object rotation (yaw then pitch then roll), uniform scale
+        const sy = Math.sin(o.ry), cy = Math.cos(o.ry);
+        const sx = Math.sin(o.rx), cx = Math.cos(o.rx);
+        const sz = Math.sin(o.rz), cz = Math.cos(o.rz);
+        // world-space verts + view-space verts
+        const wv = new Array(m.verts.length), vv = new Array(m.verts.length);
+        for (let i=0;i<m.verts.length;i++) {
+          let [x,y,z] = m.verts[i];
+          x*=o.s; y*=o.s; z*=o.s;
+          // roll (z), pitch (x), yaw (y)
+          let x1 = x*cz - y*sz, y1 = x*sz + y*cz, z1 = z;
+          let y2 = y1*cx - z1*sx, z2 = y1*sx + z1*cx, x2 = x1;
+          let x3 = x2*cy + z2*sy, z3 = -x2*sy + z2*cy, y3 = y2;
+          const wx = x3+o.x, wy = y3+o.y, wz = z3+o.z;
+          wv[i] = [wx,wy,wz];
+          const v = [0,0,0];
+          toView(wx,wy,wz,cam,v);
+          vv[i] = v;
+        }
+        for (const t of m.tris) {
+          // flat normal in world space (for lighting)
+          const n = norm3(cross3(sub3(wv[t[1]],wv[t[0]]), sub3(wv[t[2]],wv[t[0]])));
+          const sh = shadeTri(n);
+          // build view-space poly with uvs
+          const poly = t.map(vi => { const v = vv[vi], uv = m.uvs[vi]; return [v[0],v[1],v[2],uv[0],uv[1]]; });
+          const clipped = clipNear(poly);
+          if (clipped.length < 3) continue;
+          // project
+          const proj = clipped.map(q => {
+            const s = F / q[2];
+            return { sx: W/2 + q[0]*s*(W/2), sy: H/2 - q[1]*s*(W/2), z: q[2], u: q[3], v: q[4] };
+          });
+          // fan triangulation
+          for (let k=1;k<proj.length-1;k++) raster([proj[0],proj[k],proj[k+1]], sh, m.tex, m.flatColor);
+        }
+      }
+      /* sprites (billboards) */
+      for (const sp of R.sprites) {
+        toView(sp.x, sp.y, sp.z, cam, _v);
+        if (_v[2] < NEAR + 0.05) continue;
+        const s = F / _v[2];
+        const cxp = W/2 + _v[0]*s*(W/2), cyp = H/2 - _v[1]*s*(W/2);
+        const half = sp.size * 0.5 * s * (W/2);
+        const x0 = Math.max(0, Math.ceil(cxp-half)), x1 = Math.min(W-1, Math.floor(cxp+half));
+        const y0 = Math.max(0, Math.ceil(cyp-half)), y1 = Math.min(H-1, Math.floor(cyp+half));
+        const t = sp.tex, tw = t.w, th = t.h, td = t.data;
+        for (let y=y0;y<=y1;y++) for (let x=x0;x<=x1;x++) {
+          const zi = y*W+x;
+          if (_v[2] >= zbuf[zi]) continue;
+          const u = (x-(cxp-half))/(2*half), v = (y-(cyp-half))/(2*half);
+          const ti = ((((v*th)|0)*tw) + ((u*tw)|0)) * 4;
+          if (td[ti+3] < 128) continue;
+          zbuf[zi] = _v[2];
+          const o = zi*4;
+          buf[o]=td[ti]; buf[o+1]=td[ti+1]; buf[o+2]=td[ti+2]; buf[o+3]=255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    R.render = render;
+    return R;
+  }
+
+  return { create, makeTexture, TEX, cube, plane, pyramid };
+})();
+
+/* =====================================================================
+   DEMO GAME — "Coin Yard". Built entirely on the CHUNK3D engine above.
+   WASD + mouse-drag. Collect 10 coins.
+   ===================================================================== */
+const canvas = document.getElementById('screen');
+const G3 = Pixel3D.create(canvas, 320, 180);
+const msgEl = document.getElementById('msg');
+
+/* ---------- input ---------- */
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyF') G3.fog = G3.fog ? null : { color:[12,10,26], near:18, far:45 };
+  if (e.code === 'KeyX') G3.wireframe = !G3.wireframe;
+  if (['Space','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => keys[e.code] = false);
+
+let dragging = false, lx = 0, ly = 0;
+const look = (dx, dy) => {
+  G3.camera.yaw -= dx * 0.0045;
+  G3.camera.pitch = Math.max(-1.4, Math.min(1.4, G3.camera.pitch - dy * 0.0045));
+};
+// touch: left half = move stick, right half = look
+const moveTouch = { x:0, y:0, id:null };
+let lookTouch = null;
+const isTouch = 'ontouchstart' in window;
+if (isTouch) document.getElementById('touchUI').style.display = 'flex';
+canvas.addEventListener('pointerdown', e => {
+  if (isTouch && e.clientX < innerWidth/2 && e.pointerType === 'touch') {
+    moveTouch.id = e.pointerId; moveTouch.sx = e.clientX; moveTouch.sy = e.clientY;
+  } else { dragging = true; lx = e.clientX; ly = e.clientY; lookTouch = e.pointerId; }
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerId === moveTouch.id) {
+    moveTouch.x = Math.max(-1, Math.min(1, (e.clientX - moveTouch.sx)/60));
+    moveTouch.y = Math.max(-1, Math.min(1, (e.clientY - moveTouch.sy)/60));
+  } else if (dragging && e.pointerId !== moveTouch.id) {
+    look(e.clientX - lx, e.clientY - ly); lx = e.clientX; ly = e.clientY;
+  }
+});
+const endTouch = e => {
+  if (e.pointerId === moveTouch.id) { moveTouch.id = null; moveTouch.x = moveTouch.y = 0; }
+  dragging = false;
+};
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', endTouch);
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+document.getElementById('tUp').addEventListener('pointerdown', () => keys.Space = true);
+document.getElementById('tUp').addEventListener('pointerup', () => keys.Space = false);
+document.getElementById('tDn').addEventListener('pointerdown', () => keys.KeyC = true);
+document.getElementById('tDn').addEventListener('pointerup', () => keys.KeyC = false);
+
+/* ---------- tiny audio blip ---------- */
+let AC = null;
+function blip(freq) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.connect(g); o.connect(g); g.connect(AC.destination);
+    g.gain.setValueAtTime(0.08, AC.currentTime);
+    g.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.12);
+    o.start(); o.stop(AC.currentTime + 0.13);
+  } catch (e) {}
+}
+
+/* ---------- build the world ---------- */
+const crateTex = Pixel3D.TEX.crate();
+const grassTex = Pixel3D.TEX.grass();
+const stoneTex = Pixel3D.TEX.stone();
+const goldTex  = Pixel3D.TEX.gold();
+
+const ground = G3.add(Pixel3D.plane(grassTex, 24), { y:0, s:30 });
+const crates = [];
+const crateMesh = Pixel3D.cube(crateTex);
+const rnd = (a,b) => a + Math.random()*(b-a);
+for (let i=0;i<14;i++) {
+  const s = rnd(0.7, 1.6);
+  crates.push(G3.add(crateMesh, { x:rnd(-22,22), z:rnd(-22,22), y:s*0.98, ry:rnd(0,6.28), s }));
+}
+// stone pyramid landmark
+G3.add(Pixel3D.cube(stoneTex), { x:-14, z:-14, y:2, ry:0.6, s:4 });
+G3.add(Pixel3D.pyramid([150,90,60]), { x:14, z:-12, s:3 });
+G3.add(Pixel3D.pyramid([90,150,90]), { x:-10, z:16, s:2.2 });
+
+/* coins */
+const coinMesh = Pixel3D.cube(goldTex);
+const coins = [];
+function spawnCoin(c) {
+  c.x = rnd(-20,20); c.z = rnd(-20,20); c.taken = false;
+  c.node.x = c.x; c.node.z = c.z;
+}
+for (let i=0;i<10;i++) {
+  const node = G3.add(coinMesh, { y:1.2, s:0.32 });
+  const c = { node, x:0, z:0, taken:false, ph:rnd(0,6.28) };
+  spawnCoin(c); coins.push(c);
+}
+
+/* ---------- game state ---------- */
+let score = 0, won = false;
+const cam = G3.camera;
+cam.x = 0; cam.y = 1.7; cam.z = 12; cam.yaw = 0; cam.pitch = -0.05;
+
+function showMsg(t, ms) {
+  msgEl.textContent = t; msgEl.style.display = 'block';
+  clearTimeout(showMsg._t);
+  showMsg._t = setTimeout(() => msgEl.style.display = 'none', ms || 2200);
+}
+
+let last = performance.now(), fpsA = 60;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  fpsA = fpsA*0.95 + (1/Math.max(dt,1e-4))*0.05;
+
+  /* movement */
+  const sp = 7*dt;
+  const sy = Math.sin(cam.yaw), cy = Math.cos(cam.yaw);
+  let mx = 0, mz = 0;
+  if (keys.KeyW || keys.ArrowUp) { mx += -sy; mz += -cy; }
+  if (keys.KeyS || keys.ArrowDown) { mx += sy; mz += cy; }
+  if (keys.KeyA) { mx += -cy; mz += sy; }
+  if (keys.KeyD) { mx += cy; mz += -sy; }
+  mx += moveTouch.x; mz += moveTouch.y;
+  const ml = Math.hypot(mx,mz);
+  if (ml > 0.01) { cam.x += mx/ml*Math.min(1,ml)*sp* (ml>1?1:1); cam.z += mz/ml*Math.min(1,ml)*sp; }
+  if (keys.Space) cam.y += sp;
+  if (keys.KeyC) cam.y -= sp;
+  cam.y = Math.max(0.5, Math.min(20, cam.y));
+  // world bounds + crate collision (circle pushout)
+  cam.x = Math.max(-28, Math.min(28, cam.x));
+  cam.z = Math.max(-28, Math.min(28, cam.z));
+  for (const c of crates) {
+    const dx = cam.x - c.x, dz = cam.z - c.z, rr = c.s*1.35 + 0.4;
+    const d = Math.hypot(dx,dz);
+    if (d < rr && d > 0.001 && cam.y < c.s*2+1) { cam.x = c.x + dx/d*rr; cam.z = c.z + dz/d*rr; }
+  }
+
+  /* coins: spin, bob, collect */
+  const t = now/1000;
+  for (const c of coins) {
+    c.node.ry = t*2 + c.ph;
+    c.node.y = 1.2 + Math.sin(t*2.4 + c.ph)*0.18;
+    if (!c.taken && Math.hypot(cam.x-c.x, cam.z-c.z) < 1.4 && Math.abs(cam.y-1.2) < 2.2) {
+      c.taken = true; score++;
+      blip(660 + score*60);
+      showMsg('🪙 +' + score, 900);
+      document.getElementById('hScore').textContent = score;
+      if (score >= 10 && !won) {
+        won = true;
+        showMsg('🏆 YOU WIN! 10 coins! (F fog · X wireframe)', 5000);
+        setTimeout(() => { score = 0; won = false; document.getElementById('hScore').textContent = 0; coins.forEach(spawnCoin); }, 5200);
+      } else setTimeout(() => spawnCoin(c), 1500);
+    }
+  }
+
+  G3.render();
+  document.getElementById('hFps').textContent = Math.round(fpsA);
+  document.getElementById('hPos').textContent = `${cam.x.toFixed(0)},${cam.z.toFixed(0)}`;
+  requestAnimationFrame(frame);
+}
+showMsg('🪙 collect 10 coins!', 2500);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
