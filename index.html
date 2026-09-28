@@ -25,6 +25,7 @@
   </a>
   <nav class="nav-links">
     <a href="#work">work</a>
+    <a href="#playground">play</a>
     <a href="#about">about</a>
     <a href="#contact" class="nav-cta">say hi</a>
   </nav>
@@ -78,7 +79,7 @@
           <span class="card-dot" style="--dot:#7fe0b2"></span>
           <span class="card-tag tint-mint">live business</span>
           <h3>Guardian</h3>
-          <p>Website care plans for law firms — updates, backups, uptime monitoring, security. Real customers, real MRR. I built the whole thing: site, audit scanner, outreach machine.</p>
+          <p>Website care plans for law firms — updates, backups, uptime monitoring, security. I built the whole thing: site, audit scanner, outreach machine. Currently signing the first firms.</p>
           <div class="card-tags"><span>micro-saas</span><span>wordpress</span><span>security</span></div>
           <a class="card-link" href="https://guardian-care.pages.dev/" target="_blank" rel="noopener">visit the site →</a>
         </article>
@@ -120,8 +121,9 @@
           <span class="card-dot" style="--dot:#8ed4f2"></span>
           <span class="card-tag tint-sky">for fun</span>
           <h3>Games &amp; toys</h3>
-          <p>BITROT (a chip-world RPG), a cell biology sim, a cozy 3D fox game, a magical tavern shopkeeper game — small games built in weekends, mostly to make my friends laugh.</p>
+          <p>BITROT (a chip-world RPG), a cell biology sim, a cozy 3D fox game, a magical tavern shopkeeper game — small games built in weekends, mostly to make my friends laugh. Four of them are playable right here on this page.</p>
           <div class="card-tags"><span>javascript</span><span>game dev</span></div>
+          <a class="card-link" href="#playground">play them below ↓</a>
         </article>
 
         <article class="card glass reveal">
@@ -152,6 +154,54 @@
     </div>
   </section>
 
+  <!-- PLAYGROUND -->
+  <section id="playground" class="section">
+    <div class="wrap">
+      <p class="kicker">the playground</p>
+      <h2>don't just read — play</h2>
+      <p class="section-sub">four tiny games, built in weekends, running right here in your browser. no downloads, no signups. pick one and go.</p>
+
+      <div class="cards">
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#8ed4f2"></span>
+          <span class="card-tag tint-sky">playable</span>
+          <h3>🌿 The Dank Cauldron</h3>
+          <p>Run a magical dispensary tavern — serve quirky customers, brew potions, keep the shop alive. Cozy chaos.</p>
+          <div class="card-tags"><span>javascript</span><span>shopkeeper sim</span></div>
+          <button class="btn btn-gel toy-play" data-game="toys/dank-cauldron.html" data-title="The Dank Cauldron">play →</button>
+        </article>
+
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#7fe0b2"></span>
+          <span class="card-tag tint-mint">playable</span>
+          <h3>🧬 CellSim</h3>
+          <p>A cell, organelle by organelle. Manage ATP, transcribe proteins, click around the cytoplasm — and try not to let it die.</p>
+          <div class="card-tags"><span>javascript</span><span>biology sim</span></div>
+          <button class="btn btn-gel toy-play" data-game="toys/cellsim.html" data-title="CellSim">play →</button>
+        </article>
+
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#b9a7ff"></span>
+          <span class="card-tag tint-lav">playable</span>
+          <h3>🦊 Embergrove</h3>
+          <p>A cozy lantern-keeping tale. You are Pip, a little fox spirit, and eight stone lanterns have gone dark. Fix that.</p>
+          <div class="card-tags"><span>javascript</span><span>cozy game</span></div>
+          <button class="btn btn-gel toy-play" data-game="toys/embergrove/" data-title="Embergrove">play →</button>
+        </article>
+
+        <article class="card glass reveal">
+          <span class="card-dot" style="--dot:#ffd166"></span>
+          <span class="card-tag tint-yellow">playable</span>
+          <h3>🧊 CHUNK3D</h3>
+          <p>A pixelated software 3D engine written from scratch — no WebGL, just math — with a playable Coin Yard demo.</p>
+          <div class="card-tags"><span>javascript</span><span>software 3d</span><span>keyboard</span></div>
+          <button class="btn btn-gel toy-play" data-game="toys/chunk3d.html" data-title="CHUNK3D">play →</button>
+        </article>
+      </div>
+      <p class="playground-note">psst — these are weekend toys, not AAA titles. bugs are part of the charm.</p>
+    </div>
+  </section>
+
   <!-- ABOUT -->
   <section id="about" class="section">
     <div class="wrap">
@@ -163,7 +213,7 @@
           <p class="kicker">about me</p>
           <h2>a professional dabbler</h2>
           <p>I'm beelito, 26, based in Charlotte, NC. I double-majored in Computer Science and Japanese at the same time (the kanji nearly ended me). These days I build small software businesses and weird creative tools from my desk.</p>
-          <p>My range is… wide. I've been a sandwich artist, a barista, and a Japanese teacher. Now I run a micro-SaaS, design CPUs for fun, and make stickers. The throughline is just: <strong>I like making things, and I can't leave a curious idea alone.</strong></p>
+          <p>My range is… wide. I've been a sandwich artist, a barista, and a Japanese teacher. Now I'm launching a micro-SaaS, design CPUs for fun, and make stickers. The throughline is just: <strong>I like making things, and I can't leave a curious idea alone.</strong></p>
           <ul class="fun-facts">
             <li><strong>currently:</strong> growing Guardian + building Embroidream</li>
             <li><strong>languages:</strong> English, Japanese, and fluent CSS</li>
@@ -195,6 +245,17 @@
   </section>
 
 </main>
+
+<!-- game modal: playground toys load here -->
+<div class="game-modal" id="gameModal" aria-hidden="true" role="dialog" aria-label="game player">
+  <div class="game-frame glass">
+    <div class="game-bar">
+      <span class="game-title" id="gameTitle">game</span>
+      <button class="game-close" id="gameClose" aria-label="close game">✕</button>
+    </div>
+    <iframe id="gameFrame" title="playable game" allow="fullscreen"></iframe>
+  </div>
+</div>
 
 <footer class="footer">
   <div class="wrap">
